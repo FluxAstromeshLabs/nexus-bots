@@ -1,5 +1,5 @@
 use cosmwasm_schema::write_api;
-use wasmvm_counter::{InstantiateMsg, QueryMsg, ExecuteMsg};
+use wasmvm_counter::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {
