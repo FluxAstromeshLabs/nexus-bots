@@ -18,9 +18,7 @@ pub struct QueryMsg {
 }
 
 #[cw_serde]
-pub struct Command {
-    threshold: Uint256,
-    amount: Uint256,
+pub struct Fund {
     receivers: Vec<String>,
 }
 
@@ -73,33 +71,29 @@ pub fn execute(
 #[entry_point]
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // parse command, we can store it as proto bytes, encrypted binary
-    let command = from_json::<Command>(msg.msg)?;
-    let fis_input = from_json::<BankAmount>(msg.fis_input.get(0).unwrap())?;
-
-    let balance = Uint256::from_str(fis_input.amount.as_str()).unwrap();
-    let instructions = if balance > command.threshold {
-        command
-            .receivers
-            .iter()
-            .map(|address| FISInstruction {
+    let command = from_json::<Fund>(msg.msg)?;
+    let mut instructions = vec![];
+    for i in 0..msg.fis_input.len() {
+        let fis_input = from_json::<BankAmount>(msg.fis_input.get(i).unwrap())?;
+        let balance = Uint256::from_str(fis_input.amount.as_str()).unwrap();
+        if balance % Uint256::from_u128(2u128) == Uint256::zero() {
+            instructions.push(FISInstruction {
                 plane: "COSMOS".to_string(),
                 action: "COSMOS_BANK_SEND".to_string(),
                 address: "".to_string(),
                 msg: to_json_binary(&MsgSend {
                     from_address: env.contract.address.clone().into_string(),
-                    to_address: address.clone(),
+                    to_address: command.receivers[i].clone(),
                     amount: vec![BankAmount {
-                        denom: "usdt".to_string(),
-                        amount: command.amount.to_string(),
+                        denom: "lux".to_string(),
+                        amount: "1".to_string(),
                     }],
                 })
                 .unwrap()
                 .to_vec(),
             })
-            .collect()
-    } else {
-        vec![]
-    };
-
+        }
+    }
+    
     StdResult::Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
