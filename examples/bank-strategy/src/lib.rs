@@ -14,7 +14,12 @@ pub enum ExecuteMsg {}
 #[cw_serde]
 pub struct QueryMsg {
     msg: Binary,
-    fis_input: Vec<Vec<Binary>>,
+    fis_input: Vec<FisInput>
+}
+
+#[cw_serde]
+pub struct FisInput {
+    data: Vec<Binary>
 }
 
 #[cw_serde]
@@ -75,8 +80,8 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mut instructions = vec![];
     let balances_input = msg.fis_input[0].clone();
 
-    for i in 0..balances_input.len() {
-        let fis_input = from_json::<BankAmount>(balances_input.get(i).unwrap())?;
+    for i in 0..balances_input.data.len() {
+        let fis_input = from_json::<BankAmount>(balances_input.data.get(i).unwrap())?;
         let balance = Uint256::from_str(fis_input.amount.as_str()).unwrap();
         if balance % Uint256::from_u128(2u128) == Uint256::one() {
             instructions.push(FISInstruction {
