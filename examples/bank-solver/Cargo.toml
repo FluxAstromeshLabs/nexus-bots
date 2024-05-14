@@ -1,0 +1,19 @@
+[package]
+name = "bank-solver"
+version = "0.0.1"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cosmwasm-std = "2.0.1"
+serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+schemars = "0.8.10"
+cosmwasm-schema = "2.0.1"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
