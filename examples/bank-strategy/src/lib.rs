@@ -92,7 +92,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     from_address: env.contract.address.clone().into_string(),
                     to_address: command.receivers[i].clone(),
                     amount: vec![BankAmount {
-                        denom: "lux".to_string(),
+                        denom: fis_input.denom.to_string(),
                         amount: "1".to_string(),
                     }],
                 })
