@@ -14,7 +14,7 @@ pub enum ExecuteMsg {}
 #[cw_serde]
 pub struct QueryMsg {
     msg: Binary,
-    fis_input: Vec<Binary>,
+    fis_input: Vec<Vec<Binary>>,
 }
 
 #[cw_serde]
@@ -73,10 +73,12 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // parse command, we can store it as proto bytes, encrypted binary
     let command = from_json::<Fund>(msg.msg)?;
     let mut instructions = vec![];
-    for i in 0..msg.fis_input.len() {
-        let fis_input = from_json::<BankAmount>(msg.fis_input.get(i).unwrap())?;
+    let balances_input = msg.fis_input[0].clone();
+
+    for i in 0..balances_input.len() {
+        let fis_input = from_json::<BankAmount>(balances_input.get(i).unwrap())?;
         let balance = Uint256::from_str(fis_input.amount.as_str()).unwrap();
-        if balance % Uint256::from_u128(2u128) == Uint256::zero() {
+        if balance % Uint256::from_u128(2u128) == Uint256::one() {
             instructions.push(FISInstruction {
                 plane: "COSMOS".to_string(),
                 action: "COSMOS_BANK_SEND".to_string(),
@@ -94,6 +96,6 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             })
         }
     }
-    
-    StdResult::Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
+
+    Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
