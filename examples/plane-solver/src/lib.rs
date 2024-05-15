@@ -13,7 +13,7 @@ pub enum ExecuteMsg {}
 #[cw_serde]
 pub struct QueryMsg {
     msg: Binary,
-    fis_input: Vec<Binary>, // denom link
+    fis_input: Vec<Binary>,
 }
 
 #[cw_serde]
