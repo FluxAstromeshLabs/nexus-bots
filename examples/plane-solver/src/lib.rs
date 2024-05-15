@@ -4,6 +4,7 @@ use cosmwasm_std::{
     Response, StdResult, Uint256,
 };
 use std::{str::FromStr, vec::Vec};
+use std::string::ToString;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -15,11 +16,6 @@ pub enum ExecuteMsg {}
 pub struct QueryMsg {
     msg: Binary,
     fis_input: Vec<Binary>,
-}
-
-#[cw_serde]
-pub struct Fund {
-    receivers: Vec<String>,
 }
 
 #[cw_serde]
@@ -36,17 +32,25 @@ pub struct StrategyOutput {
 }
 
 #[cw_serde]
-pub struct MsgSend {
-    from_address: String,
-    to_address: String,
-    amount: Vec<BankAmount>,
+pub struct AstroTransferMsg {
+    sender: String,
+    receiver: String,
+    src_plane: String,
+    dst_plane: String,
+    coin: Coin,
 }
 
 #[cw_serde]
-pub struct BankAmount {
+pub struct Coin {
     denom: String,
-    amount: String,
+    amount: String
 }
+
+const PLANE_COSMOS: String = "COSMOS".to_string();
+const PLANE_EVM: String = "EVM".to_string();
+const PLANE_WASM: String = "WASM".to_string();
+const PLANE_SVM: String = "SVM".to_string();
+
 
 #[entry_point]
 pub fn instantiate(
@@ -77,23 +81,25 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let fis_input = from_json::<BankAmount>(msg.fis_input.get(i).unwrap())?;
         let balance = Uint256::from_str(fis_input.amount.as_str()).unwrap();
         if balance % Uint256::from_u128(2u128) == Uint256::zero() {
-            instructions.push(FISInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_BANK_SEND".to_string(),
+            instructions.push(FISInstruction{
+                plane: PLANE_COSMOS,
+                action: "COSMOS_ASTROMESH_TRANSFER".to_string(),
                 address: "".to_string(),
-                msg: to_json_binary(&MsgSend {
-                    from_address: env.contract.address.clone().into_string(),
-                    to_address: command.receivers[i].clone(),
-                    amount: vec![BankAmount {
-                        denom: "lux".to_string(),
-                        amount: "1".to_string(),
-                    }],
+                msg: to_json_binary(&AstroTransferMsg{
+                    sender: env.contract.address.to_string(),
+                    receiver: env.contract.address.to_string(),
+                    src_plane: "EVM".to_string(),
+                    dst_plane: "COSMOS".to_string(),
+                    coin: Coin{
+                        denom: "",
+                        amount: "",
+                    },
                 })
                 .unwrap()
                 .to_vec(),
             })
         }
     }
-    
+
     StdResult::Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
