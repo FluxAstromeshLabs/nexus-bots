@@ -76,12 +76,11 @@ pub fn execute(
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     assert_eq!(msg.fis_input.len(), 3, "require balance input from 3 planes");
     let command = String::from_utf8(msg.msg.to_vec()).unwrap();
-    let withdraw_reg = regex::Regex::new("^user (lux[a-z,0-9]+) withdraws usdt from all planes$").unwrap();
-    let deposit_reg = regex::Regex::new("^user (lux[a-z,0-9]+) deposit ([0-9]+) usdt equally from bank to all planes$").unwrap();
+    let withdraw_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to usdt from all planes to cosmos bank account$").unwrap();
+    let deposit_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to deposit ([0-9]+) usdt equally from bank to all planes$").unwrap();
     let instructions = if let Some(withdraw_match) = withdraw_reg.captures(command.as_str()) {
         let address = withdraw_match.get(0).unwrap().as_str();
         // get wasm, evm, svm balances
-        // let denom = "usdt";
         let wasm_balance = from_json::<Coin>(msg.fis_input.get(0).unwrap()).unwrap();
         let evm_balance = from_json::<Coin>(msg.fis_input.get(1).unwrap()).unwrap();
         let svm_balance = from_json::<Coin>(msg.fis_input.get(2).unwrap()).unwrap();
@@ -112,7 +111,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let address = deposit_match.get(0).unwrap().as_str();
         let amount = Uint256::from_str(deposit_match.get(1).unwrap().as_str()).unwrap();
         let balance = from_json::<Coin>(msg.fis_input.get(0).unwrap()).unwrap();
-        assert!(balance.amount.gt(&amount), "transfer amount must not exceed current  balance");
+        assert!(balance.amount.ge(&amount), "transfer amount must not exceed current balance");
         
         let real_amount = amount.checked_mul(Uint256::from_u128(1000000u128)).unwrap();
         let divided_amount = real_amount.checked_div(Uint256::from_u128(1000000u128)).unwrap();
