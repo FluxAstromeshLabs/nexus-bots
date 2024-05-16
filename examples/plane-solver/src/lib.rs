@@ -11,9 +11,14 @@ pub struct InstantiateMsg {}
 pub enum ExecuteMsg {}
 
 #[cw_serde]
+pub struct FisInput {
+    data: Vec<Binary>
+}
+
+#[cw_serde]
 pub struct QueryMsg {
     msg: Binary,
-    fis_input: Vec<Binary>,
+    fis_input: Vec<FisInput>,
 }
 
 #[cw_serde]
@@ -78,12 +83,14 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let command = String::from_utf8(msg.msg.to_vec()).unwrap();
     let withdraw_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to usdt from all planes to cosmos bank account$").unwrap();
     let deposit_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to deposit ([0-9]+) usdt equally from bank to all planes$").unwrap();
+    let fis_input = &msg.fis_input.get(0).unwrap().data;
+
     let instructions = if let Some(withdraw_match) = withdraw_reg.captures(command.as_str()) {
         let address = withdraw_match.get(0).unwrap().as_str();
-        // get wasm, evm, svm balances
-        let wasm_balance = from_json::<Coin>(msg.fis_input.get(0).unwrap()).unwrap();
-        let evm_balance = from_json::<Coin>(msg.fis_input.get(1).unwrap()).unwrap();
-        let svm_balance = from_json::<Coin>(msg.fis_input.get(2).unwrap()).unwrap();
+        // get wasm, evm, svm balances    
+        let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
+        let evm_balance = from_json::<Coin>(fis_input.get(1).unwrap()).unwrap();
+        let svm_balance = from_json::<Coin>(fis_input.get(2).unwrap()).unwrap();
 
         let planes = vec!["WASM", "EVM", "SVM"];
         let balances = vec![wasm_balance, evm_balance, svm_balance];
@@ -115,7 +122,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     } else if let Some(deposit_match) = deposit_reg.captures(command.as_str()) {
         let address = deposit_match.get(0).unwrap().as_str();
         let amount = Uint256::from_str(deposit_match.get(1).unwrap().as_str()).unwrap();
-        let balance = from_json::<Coin>(msg.fis_input.get(0).unwrap()).unwrap();
+        let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
         assert!(balance.amount.ge(&amount), "transfer amount must not exceed current balance");
         
         let real_amount = amount.checked_mul(Uint256::from_u128(1000000u128)).unwrap();
