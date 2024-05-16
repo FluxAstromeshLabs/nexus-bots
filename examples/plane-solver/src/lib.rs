@@ -2,8 +2,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint256
 };
-use serde::Serialize;
-use std::{str::FromStr, vec::Vec};
+use std::vec::Vec;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -88,7 +87,6 @@ pub fn execute(
 
 #[entry_point]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    assert_eq!(msg.fis_input.len(), 3, "require balance input from 3 planes");
     let abs_obj = from_json::<AbstractionObject>(msg.msg.to_vec()).unwrap();
     // let withdraw_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to usdt from all planes to cosmos bank account$").unwrap();
     // let deposit_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to deposit ([0-9]+) usdt equally from bank to all planes$").unwrap();
@@ -133,21 +131,8 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let amount = abs_obj.deposit_amount.unwrap();
         let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
         let denom = &abs_obj.denom;
-        if denom != "usdt" || denom != "lux" {
-            return  Err(StdError::generic_err("unsupported denom"));
-        }
-
-        let decimals = if denom == "usdt" {
-            6
-        } else {
-            18
-        };
-
-        let ten_pow_decimals = Uint256::from_u128(10u128).pow(decimals);
-        assert!(balance.amount.ge(&amount), "transfer amount must not exceed current balance");
-        
-        let real_amount = amount.checked_mul(ten_pow_decimals).unwrap();
-        let divided_amount = real_amount.checked_div(Uint256::from(3u128)).unwrap();
+        assert!(balance.amount.le(&amount), "transfer amount must not exceed current balance");
+        let divided_amount = amount.checked_div(Uint256::from(3u128)).unwrap();
         vec!["WASM", "EVM", "SVM"].iter().map(
             |plane| FISInstruction{
                 plane: "COSMOS".to_string(),
