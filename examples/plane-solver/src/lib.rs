@@ -89,13 +89,13 @@ pub fn execute(
 #[entry_point]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     assert_eq!(msg.fis_input.len(), 3, "require balance input from 3 planes");
-    let command = from_json::<AbstractionObject>(msg.msg.to_vec()).unwrap();
+    let abs_obj = from_json::<AbstractionObject>(msg.msg.to_vec()).unwrap();
     // let withdraw_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to usdt from all planes to cosmos bank account$").unwrap();
     // let deposit_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to deposit ([0-9]+) usdt equally from bank to all planes$").unwrap();
     let fis_input = &msg.fis_input.get(0).unwrap().data;
 
-    let instructions = if command.action == "withdraw" {
-        let address = command.sender;
+    let instructions = if abs_obj.action == "withdraw" {
+        let address = abs_obj.sender;
         // get wasm, evm, svm balances    
         let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
         let evm_balance = from_json::<Coin>(fis_input.get(1).unwrap()).unwrap();
@@ -128,11 +128,11 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             }
         }
         ixs
-    } else if command.action == "deposit" {
-        let address = command.sender;
-        let amount = command.deposit_amount.unwrap();
+    } else if abs_obj.action == "deposit" {
+        let address = abs_obj.sender;
+        let amount = abs_obj.deposit_amount.unwrap();
         let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
-        let denom = &command.denom;
+        let denom = &abs_obj.denom;
         if denom != "usdt" || denom != "lux" {
             return  Err(StdError::generic_err("unsupported denom"));
         }
