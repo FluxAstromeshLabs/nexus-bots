@@ -91,6 +91,11 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         for i in 0..planes.len() {
             let plane = planes.get(i).unwrap();
             let balance = balances.get(i).unwrap();
+            let mut denom = balance.clone().denom;
+            if plane == &"EVM" || plane == &"SVM" {
+                denom = String::from("astro/") + denom.as_str();
+            }
+
             if !balance.amount.is_zero() {
                 ixs.push(FISInstruction{
                     plane: "COSMOS".to_string(),
@@ -101,7 +106,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                         receiver: address.to_string(),
                         src_plane: plane.to_string(),
                         dst_plane: "COSMOS".to_string(),
-                        coin: Coin { denom: balance.clone().denom, amount: balance.amount}, // TODO: Denom link
+                        coin: Coin { denom, amount: balance.amount},
                     }).unwrap(),
                 },)
             }
