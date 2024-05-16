@@ -2,6 +2,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint256
 };
+use serde::Serialize;
 use std::{str::FromStr, vec::Vec};
 
 #[cw_serde]
@@ -27,6 +28,14 @@ pub struct FISInstruction {
     action: String,
     address: String,
     msg: Vec<u8>,
+}
+
+#[cw_serde]
+pub struct AbstractionObject {
+    action: String,
+    denom: String,
+    sender: String,
+    deposit_amount: Option<Uint256>,
 }
 
 #[cw_serde]
@@ -80,13 +89,13 @@ pub fn execute(
 #[entry_point]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     assert_eq!(msg.fis_input.len(), 3, "require balance input from 3 planes");
-    let command = String::from_utf8(msg.msg.to_vec()).unwrap();
-    let withdraw_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to usdt from all planes to cosmos bank account$").unwrap();
-    let deposit_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to deposit ([0-9]+) usdt equally from bank to all planes$").unwrap();
+    let command = from_json::<AbstractionObject>(msg.msg.to_vec()).unwrap();
+    // let withdraw_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to usdt from all planes to cosmos bank account$").unwrap();
+    // let deposit_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to deposit ([0-9]+) usdt equally from bank to all planes$").unwrap();
     let fis_input = &msg.fis_input.get(0).unwrap().data;
 
-    let instructions = if let Some(withdraw_match) = withdraw_reg.captures(command.as_str()) {
-        let address = withdraw_match.get(0).unwrap().as_str();
+    let instructions = if command.action == "withdraw" {
+        let address = command.sender;
         // get wasm, evm, svm balances    
         let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
         let evm_balance = from_json::<Coin>(fis_input.get(1).unwrap()).unwrap();
@@ -119,14 +128,26 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             }
         }
         ixs
-    } else if let Some(deposit_match) = deposit_reg.captures(command.as_str()) {
-        let address = deposit_match.get(0).unwrap().as_str();
-        let amount = Uint256::from_str(deposit_match.get(1).unwrap().as_str()).unwrap();
+    } else if command.action == "deposit" {
+        let address = command.sender;
+        let amount = command.deposit_amount.unwrap();
         let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
+        let denom = &command.denom;
+        if denom != "usdt" || denom != "lux" {
+            return  Err(StdError::generic_err("unsupported denom"));
+        }
+
+        let decimals = if denom == "usdt" {
+            6
+        } else {
+            18
+        };
+
+        let ten_pow_decimals = Uint256::from_u128(10u128).pow(decimals);
         assert!(balance.amount.ge(&amount), "transfer amount must not exceed current balance");
         
-        let real_amount = amount.checked_mul(Uint256::from_u128(1000000u128)).unwrap();
-        let divided_amount = real_amount.checked_div(Uint256::from_u128(1000000u128)).unwrap();
+        let real_amount = amount.checked_mul(ten_pow_decimals).unwrap();
+        let divided_amount = real_amount.checked_div(Uint256::from(3u128)).unwrap();
         vec!["WASM", "EVM", "SVM"].iter().map(
             |plane| FISInstruction{
                 plane: "COSMOS".to_string(),
@@ -137,7 +158,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     receiver: address.to_string(),
                     src_plane:"COSMOS".to_string(),
                     dst_plane: plane.to_string(),
-                    coin: Coin { denom: "usdt".to_string(), amount: divided_amount}, 
+                    coin: Coin { denom: denom.clone(), amount: divided_amount}, 
                 }).unwrap(),
             }
         ).collect()
