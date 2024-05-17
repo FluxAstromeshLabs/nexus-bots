@@ -1,10 +1,9 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Uint256,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Uint256,
 };
-use std::{str::FromStr, vec::Vec};
-use std::string::ToString;
+use std::vec::Vec;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -13,9 +12,14 @@ pub struct InstantiateMsg {}
 pub enum ExecuteMsg {}
 
 #[cw_serde]
+pub struct FisInput {
+    data: Vec<Binary>,
+}
+
+#[cw_serde]
 pub struct QueryMsg {
     msg: Binary,
-    fis_input: Vec<Binary>,
+    fis_input: Vec<FisInput>,
 }
 
 #[cw_serde]
@@ -27,8 +31,24 @@ pub struct FISInstruction {
 }
 
 #[cw_serde]
+pub struct AbstractionObject {
+    action: String,
+    denom: String,
+    sender: String,
+    deposit_amount: Option<Uint256>,
+}
+
+#[cw_serde]
 pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
+}
+
+#[cw_serde]
+pub enum Plane {
+    COSMOS,
+    WASM,
+    EVM,
+    SVM,
 }
 
 #[cw_serde]
@@ -43,14 +63,8 @@ pub struct AstroTransferMsg {
 #[cw_serde]
 pub struct Coin {
     denom: String,
-    amount: String
+    amount: Uint256,
 }
-
-const PLANE_COSMOS: String = "COSMOS".to_string();
-const PLANE_EVM: String = "EVM".to_string();
-const PLANE_WASM: String = "WASM".to_string();
-const PLANE_SVM: String = "SVM".to_string();
-
 
 #[entry_point]
 pub fn instantiate(
@@ -73,33 +87,82 @@ pub fn execute(
 }
 
 #[entry_point]
-pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    // parse command, we can store it as proto bytes, encrypted binary
-    let command = from_json::<Fund>(msg.msg)?;
-    let mut instructions = vec![];
-    for i in 0..msg.fis_input.len() {
-        let fis_input = from_json::<BankAmount>(msg.fis_input.get(i).unwrap())?;
-        let balance = Uint256::from_str(fis_input.amount.as_str()).unwrap();
-        if balance % Uint256::from_u128(2u128) == Uint256::zero() {
-            instructions.push(FISInstruction{
-                plane: PLANE_COSMOS,
-                action: "COSMOS_ASTROMESH_TRANSFER".to_string(),
-                address: "".to_string(),
-                msg: to_json_binary(&AstroTransferMsg{
-                    sender: env.contract.address.to_string(),
-                    receiver: env.contract.address.to_string(),
-                    src_plane: "EVM".to_string(),
-                    dst_plane: "COSMOS".to_string(),
-                    coin: Coin{
-                        denom: "",
-                        amount: "",
-                    },
+pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let abs_obj = from_json::<AbstractionObject>(msg.msg.to_vec()).unwrap();
+    let fis_input = &msg.fis_input.get(0).unwrap().data;
+
+    let instructions = match abs_obj.action.as_str() {
+        "withdraw_all_plane" => {
+            let address = abs_obj.sender;
+            // get wasm, evm, svm balances in order
+            let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
+            let evm_balance = from_json::<Coin>(fis_input.get(1).unwrap()).unwrap();
+            let svm_balance = from_json::<Coin>(fis_input.get(2).unwrap()).unwrap();
+
+            let planes = vec!["WASM", "EVM", "SVM"];
+            let balances = vec![wasm_balance, evm_balance, svm_balance];
+            let mut ixs = vec![];
+            for i in 0..planes.len() {
+                let plane = planes.get(i).unwrap();
+                let balance = balances.get(i).unwrap();
+                let mut denom = balance.clone().denom;
+                if plane == &"EVM" || plane == &"SVM" {
+                    denom = String::from("astro/") + denom.as_str();
+                }
+
+                if !balance.amount.is_zero() {
+                    ixs.push(FISInstruction {
+                        plane: "COSMOS".to_string(),
+                        action: "COSMOS_ASTROMESH_TRANSFER".to_string(),
+                        address: "".to_string(),
+                        msg: to_json_vec(&AstroTransferMsg {
+                            sender: address.to_string(),
+                            receiver: address.to_string(),
+                            src_plane: plane.to_string(),
+                            dst_plane: "COSMOS".to_string(),
+                            coin: Coin {
+                                denom,
+                                amount: balance.amount,
+                            },
+                        })
+                        .unwrap(),
+                    })
+                }
+            }
+            ixs
+        },
+        "deposit_equally" => {
+            let address = abs_obj.sender;
+            let amount = abs_obj.deposit_amount.expect("deposit amount must be provided");
+            let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
+            let denom = &abs_obj.denom;
+            assert!(
+                balance.amount.le(&amount),
+                "transfer amount must not exceed current balance"
+            );
+            let divided_amount = amount.checked_div(Uint256::from(3u128)).unwrap();
+            vec!["WASM", "EVM", "SVM"]
+                .iter()
+                .map(|plane| FISInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_ASTROMESH_TRANSFER".to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&AstroTransferMsg {
+                        sender: address.to_string(),
+                        receiver: address.to_string(),
+                        src_plane: "COSMOS".to_string(),
+                        dst_plane: plane.to_string(),
+                        coin: Coin {
+                            denom: denom.clone(),
+                            amount: divided_amount,
+                        },
+                    })
+                    .unwrap(),
                 })
-                .unwrap()
-                .to_vec(),
-            })
+                .collect()
         }
-    }
+        _ => return Err(StdError::generic_err("unsupported intent")),
+    };
 
     StdResult::Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
