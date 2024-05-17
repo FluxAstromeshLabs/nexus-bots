@@ -88,13 +88,11 @@ pub fn execute(
 #[entry_point]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let abs_obj = from_json::<AbstractionObject>(msg.msg.to_vec()).unwrap();
-    // let withdraw_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to usdt from all planes to cosmos bank account$").unwrap();
-    // let deposit_reg = regex::Regex::new("^(lux[a-z,0-9]+) wants to deposit ([0-9]+) usdt equally from bank to all planes$").unwrap();
     let fis_input = &msg.fis_input.get(0).unwrap().data;
 
     let instructions = if abs_obj.action == "withdraw" {
         let address = abs_obj.sender;
-        // get wasm, evm, svm balances    
+        // get wasm, evm, svm balances in order
         let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
         let evm_balance = from_json::<Coin>(fis_input.get(1).unwrap()).unwrap();
         let svm_balance = from_json::<Coin>(fis_input.get(2).unwrap()).unwrap();
