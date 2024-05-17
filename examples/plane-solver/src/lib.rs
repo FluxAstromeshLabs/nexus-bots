@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint256
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Uint256,
 };
 use std::vec::Vec;
 
@@ -12,7 +13,7 @@ pub enum ExecuteMsg {}
 
 #[cw_serde]
 pub struct FisInput {
-    data: Vec<Binary>
+    data: Vec<Binary>,
 }
 
 #[cw_serde]
@@ -90,63 +91,77 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let abs_obj = from_json::<AbstractionObject>(msg.msg.to_vec()).unwrap();
     let fis_input = &msg.fis_input.get(0).unwrap().data;
 
-    let instructions = if abs_obj.action == "withdraw" {
-        let address = abs_obj.sender;
-        // get wasm, evm, svm balances in order
-        let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
-        let evm_balance = from_json::<Coin>(fis_input.get(1).unwrap()).unwrap();
-        let svm_balance = from_json::<Coin>(fis_input.get(2).unwrap()).unwrap();
+    let instructions = match abs_obj.action.as_str() {
+        "withdraw_from_all_plane" => {
+            let address = abs_obj.sender;
+            // get wasm, evm, svm balances in order
+            let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
+            let evm_balance = from_json::<Coin>(fis_input.get(1).unwrap()).unwrap();
+            let svm_balance = from_json::<Coin>(fis_input.get(2).unwrap()).unwrap();
 
-        let planes = vec!["WASM", "EVM", "SVM"];
-        let balances = vec![wasm_balance, evm_balance, svm_balance];
-        let mut ixs = vec![];
-        for i in 0..planes.len() {
-            let plane = planes.get(i).unwrap();
-            let balance = balances.get(i).unwrap();
-            let mut denom = balance.clone().denom;
-            if plane == &"EVM" || plane == &"SVM" {
-                denom = String::from("astro/") + denom.as_str();
+            let planes = vec!["WASM", "EVM", "SVM"];
+            let balances = vec![wasm_balance, evm_balance, svm_balance];
+            let mut ixs = vec![];
+            for i in 0..planes.len() {
+                let plane = planes.get(i).unwrap();
+                let balance = balances.get(i).unwrap();
+                let mut denom = balance.clone().denom;
+                if plane == &"EVM" || plane == &"SVM" {
+                    denom = String::from("astro/") + denom.as_str();
+                }
+
+                if !balance.amount.is_zero() {
+                    ixs.push(FISInstruction {
+                        plane: "COSMOS".to_string(),
+                        action: "COSMOS_ASTROMESH_TRANSFER".to_string(),
+                        address: "".to_string(),
+                        msg: to_json_vec(&AstroTransferMsg {
+                            sender: address.to_string(),
+                            receiver: address.to_string(),
+                            src_plane: plane.to_string(),
+                            dst_plane: "COSMOS".to_string(),
+                            coin: Coin {
+                                denom,
+                                amount: balance.amount,
+                            },
+                        })
+                        .unwrap(),
+                    })
+                }
             }
-
-            if !balance.amount.is_zero() {
-                ixs.push(FISInstruction{
+            ixs
+        },
+        "deposit_equally" => {
+            let address = abs_obj.sender;
+            let amount = abs_obj.deposit_amount.expect("deposit amount must be provided");
+            let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
+            let denom = &abs_obj.denom;
+            assert!(
+                balance.amount.le(&amount),
+                "transfer amount must not exceed current balance"
+            );
+            let divided_amount = amount.checked_div(Uint256::from(3u128)).unwrap();
+            vec!["WASM", "EVM", "SVM"]
+                .iter()
+                .map(|plane| FISInstruction {
                     plane: "COSMOS".to_string(),
                     action: "COSMOS_ASTROMESH_TRANSFER".to_string(),
                     address: "".to_string(),
-                    msg: to_json_vec(&AstroTransferMsg{
+                    msg: to_json_vec(&AstroTransferMsg {
                         sender: address.to_string(),
                         receiver: address.to_string(),
-                        src_plane: plane.to_string(),
-                        dst_plane: "COSMOS".to_string(),
-                        coin: Coin { denom, amount: balance.amount},
-                    }).unwrap(),
-                },)
-            }
+                        src_plane: "COSMOS".to_string(),
+                        dst_plane: plane.to_string(),
+                        coin: Coin {
+                            denom: denom.clone(),
+                            amount: divided_amount,
+                        },
+                    })
+                    .unwrap(),
+                })
+                .collect()
         }
-        ixs
-    } else if abs_obj.action == "deposit" {
-        let address = abs_obj.sender;
-        let amount = abs_obj.deposit_amount.unwrap();
-        let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
-        let denom = &abs_obj.denom;
-        assert!(balance.amount.le(&amount), "transfer amount must not exceed current balance");
-        let divided_amount = amount.checked_div(Uint256::from(3u128)).unwrap();
-        vec!["WASM", "EVM", "SVM"].iter().map(
-            |plane| FISInstruction{
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_ASTROMESH_TRANSFER".to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&AstroTransferMsg{
-                    sender: address.to_string(),
-                    receiver: address.to_string(),
-                    src_plane:"COSMOS".to_string(),
-                    dst_plane: plane.to_string(),
-                    coin: Coin { denom: denom.clone(), amount: divided_amount}, 
-                }).unwrap(),
-            }
-        ).collect()
-    } else {
-        return Err(StdError::generic_err("unsupported intent"));
+        _ => return Err(StdError::generic_err("unsupported intent")),
     };
 
     StdResult::Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
