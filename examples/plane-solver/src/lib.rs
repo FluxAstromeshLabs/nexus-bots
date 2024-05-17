@@ -92,7 +92,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let fis_input = &msg.fis_input.get(0).unwrap().data;
 
     let instructions = match abs_obj.action.as_str() {
-        "withdraw_from_all_plane" => {
+        "withdraw_all_plane" => {
             let address = abs_obj.sender;
             // get wasm, evm, svm balances in order
             let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
