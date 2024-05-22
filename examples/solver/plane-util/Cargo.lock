@@ -424,7 +424,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "plane-solver"
+name = "plane-util"
 version = "0.0.1"
 dependencies = [
  "cosmwasm-schema",

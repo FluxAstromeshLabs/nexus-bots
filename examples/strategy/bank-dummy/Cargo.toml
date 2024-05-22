@@ -1,5 +1,5 @@
 [package]
-name = "plane-solver"
+name = "bank-dummy"
 version = "0.0.1"
 edition = "2021"
 
@@ -10,7 +10,6 @@ cosmwasm-std = "2.0.1"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 schemars = "0.8.10"
 cosmwasm-schema = "2.0.1"
-regex = "1.10.4"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bank-strategy"
+name = "bank-dummy"
 version = "0.0.1"
 dependencies = [
  "cosmwasm-schema",
