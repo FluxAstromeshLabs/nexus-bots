@@ -1,7 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint256,
+    Response, StdResult, Uint256,
 };
 use std::vec::Vec;
 
@@ -31,11 +31,12 @@ pub struct FISInstruction {
 }
 
 #[cw_serde]
-pub struct AbstractionObject {
-    action: String,
-    denom: String,
-    sender: String,
-    deposit_amount: Option<Uint256>,
+pub enum AbstractionObject {
+    WithdrawAllPlane {},
+    DepositEqually {
+        denom: String,
+        amount: Uint256,
+    }
 }
 
 #[cw_serde]
@@ -87,13 +88,13 @@ pub fn execute(
 }
 
 #[entry_point]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let abs_obj = from_json::<AbstractionObject>(msg.msg.to_vec()).unwrap();
     let fis_input = &msg.fis_input.get(0).unwrap().data;
 
-    let instructions = match abs_obj.action.as_str() {
-        "withdraw_all_plane" => {
-            let address = abs_obj.sender;
+    let instructions = match abs_obj {
+        AbstractionObject::WithdrawAllPlane { } => {
+            let address = env.contract.address;
             // get wasm, evm, svm balances in order
             let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
             let evm_balance = from_json::<Coin>(fis_input.get(1).unwrap()).unwrap();
@@ -131,11 +132,9 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             }
             ixs
         },
-        "deposit_equally" => {
-            let address = abs_obj.sender;
-            let amount = abs_obj.deposit_amount.expect("deposit amount must be provided");
+        AbstractionObject::DepositEqually { denom, amount } => {
+            let address = env.contract.address;
             let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
-            let denom = &abs_obj.denom;
             assert!(
                 balance.amount.le(&amount),
                 "transfer amount must not exceed current balance"
@@ -161,7 +160,6 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 })
                 .collect()
         }
-        _ => return Err(StdError::generic_err("unsupported intent")),
     };
 
     StdResult::Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
