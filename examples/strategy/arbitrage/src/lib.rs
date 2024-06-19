@@ -1,3 +1,6 @@
+pub mod fis;
+pub mod test;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, Uint256
@@ -111,6 +114,8 @@ pub fn astro_transfer(src_plane: String, dst_plane: String, denom: String, amoun
 
 #[entry_point]
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+
+    // _deps.querier
     let instructions = vec![];
     // calculate optimal value, check decimals
     // input 3 planes [wasm] [evm] [svm]
@@ -142,7 +147,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     ];
 
     let src_pool = pools.iter().find(|p| p.plane == msg.source_plane).unwrap();
-
+    
     // calculate profit for target pool
     let mut selected_pool: &Pool = &pools[0];
     let (mut optimal_x, mut optimal_y) = (0i128, 0i128);

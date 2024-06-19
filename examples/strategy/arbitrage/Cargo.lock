@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bank-dummy"
+name = "arbitrage-demo"
 version = "0.0.1"
 dependencies = [
  "cosmwasm-schema",
