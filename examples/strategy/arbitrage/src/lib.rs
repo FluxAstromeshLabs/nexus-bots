@@ -1,4 +1,5 @@
-pub mod fis;
+pub mod uniswap;
+pub mod astroport;
 pub mod test;
 
 use cosmwasm_schema::cw_serde;
@@ -6,7 +7,7 @@ use cosmwasm_std::{
     entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, Uint256
 };
 use cosmwasm_std::Isqrt;
-use std::cmp::{max, min};
+use std::cmp::min;
 use std::vec::Vec;
 
 #[cw_serde]
@@ -105,6 +106,7 @@ pub fn get_max_profit_point(
 
 // TODO: Add contract
 pub fn swap(plane: String, pool_id: String, x: u128, zeroForOne: bool) -> Option<FISInstruction> {
+    // TODO: implement
     None
 }
 
@@ -114,7 +116,6 @@ pub fn astro_transfer(src_plane: String, dst_plane: String, denom: String, amoun
 
 #[entry_point]
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-
     // _deps.querier
     let instructions = vec![];
     // calculate optimal value, check decimals
