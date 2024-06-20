@@ -1,8 +1,8 @@
 use cosmwasm_std::Binary;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub mod uniswap {
-    use cosmwasm_std::{Binary, Uint256};
+    use cosmwasm_std::{Binary, Int256, Uint256};
     use serde::{Deserialize, Serialize};
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct PoolKey {
@@ -104,6 +104,51 @@ pub mod uniswap {
         res.extend(empty_hook_data.iter());
         res
     }
+
+    #[derive(Debug, Clone)]
+    pub struct PoolInfo {
+        pub sqrt_price_x96: Uint256,
+        pub tick: Int256,
+        pub protocol_fee: u32,
+        pub lp_fee: u32,
+    }
+
+    fn signed_big_int_from_bytes(b: &[u8]) -> Int256 {
+        Int256::from_be_bytes(b.try_into().expect("Slice with incorrect length"))
+    }
+
+    pub fn parse_pool_info(data: &[u8]) -> Result<PoolInfo, String> {
+        if data.len() != 32 {
+            return Err("input data must be 32 bytes".to_string());
+        }
+
+        let sqrt_price_x96 = Uint256::from_be_bytes(
+            data[12..32]
+                .try_into()
+                .expect("Slice with incorrect length"),
+        );
+
+        let tick_bytes = &data[9..12];
+        let tick = signed_big_int_from_bytes(tick_bytes);
+
+        let protocol_fee_bytes = &data[6..9];
+        let protocol_fee = u32::from_be_bytes([
+            0,
+            protocol_fee_bytes[0],
+            protocol_fee_bytes[1],
+            protocol_fee_bytes[2],
+        ]);
+
+        let lp_fee_bytes = &data[3..6];
+        let lp_fee = u32::from_be_bytes([0, lp_fee_bytes[0], lp_fee_bytes[1], lp_fee_bytes[2]]);
+
+        Ok(PoolInfo {
+            sqrt_price_x96,
+            tick,
+            protocol_fee,
+            lp_fee,
+        })
+    }
 }
 
 // more dapp types goes here
@@ -118,7 +163,12 @@ pub struct MsgExecuteContract {
 }
 
 impl MsgExecuteContract {
-    pub fn new(sender: String, contract_address: Binary, calldata: Binary, input_amount: Binary) -> Self {
+    pub fn new(
+        sender: String,
+        contract_address: Binary,
+        calldata: Binary,
+        input_amount: Binary,
+    ) -> Self {
         MsgExecuteContract {
             ty: "flux.evm.v1beta1.MsgExecuteContract".to_string(),
             sender,

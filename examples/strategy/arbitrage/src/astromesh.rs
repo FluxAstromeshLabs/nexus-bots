@@ -1,5 +1,5 @@
 use cosmwasm_std::Coin;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgAstroTransfer {
@@ -13,7 +13,13 @@ pub struct MsgAstroTransfer {
 }
 
 impl MsgAstroTransfer {
-    pub fn new(sender: String, receiver: String, src_plane: String, dst_plane: String, coin: Coin) -> Self {
+    pub fn new(
+        sender: String,
+        receiver: String,
+        src_plane: String,
+        dst_plane: String,
+        coin: Coin,
+    ) -> Self {
         MsgAstroTransfer {
             ty: "flux.astromesh.v1beta1.AstroTransfer".to_string(),
             sender,
