@@ -1,3 +1,4 @@
+use cosmwasm_std::Binary;
 use serde::{Deserialize, Serialize};
 
 /*
@@ -123,31 +124,29 @@ use serde::{Deserialize, Serialize};
 }
 */
 pub mod raydium {
-    use cosmwasm_std::Uint128;
+    use cosmwasm_std::{Binary, Uint128};
 
     use super::{Instruction, InstructionAccount, MsgTransaction};
 
-    const SPL_TOKEN_2022: String = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb".to_string();
-    const CPMM_PROGRAM_ID: String = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C".to_string();
+    const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+    const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
 
     pub fn swap_base_input(
-            sender: String, 
-            amount_in: u64,
-            min_amount_out: u64,
-            program_id: String,
-            sender_svm_account: String,
-            authority_account: String,
-            amm_config_account: String,
-            pool_state_account: String,
-            input_token_account: String,
-            output_token_account: String,
-            input_vault: String,
-            output_vault: String,
-            input_token_mint: String,
-            output_token_mint: String,
-            observer_state: String,
-        ) -> MsgTransaction {
-
+        sender: String,
+        amount_in: u64,
+        min_amount_out: u64,
+        sender_svm_account: String,
+        authority_account: String,
+        amm_config_account: String,
+        pool_state_account: String,
+        input_token_account: String,
+        output_token_account: String,
+        input_vault: String,
+        output_vault: String,
+        input_token_mint: String,
+        output_token_mint: String,
+        observer_state: String,
+    ) -> MsgTransaction {
         let accounts = vec![
             sender_svm_account,
             authority_account,
@@ -157,23 +156,24 @@ pub mod raydium {
             output_token_account,
             input_vault,
             output_vault,
-            SPL_TOKEN_2022,
-            SPL_TOKEN_2022,
+            SPL_TOKEN_2022.to_string(),
+            SPL_TOKEN_2022.to_string(),
             input_token_mint,
             output_token_mint,
             observer_state,
-            CPMM_PROGRAM_ID,
+            CPMM_PROGRAM_ID.to_string(),
         ];
 
-        let data_bz: Vec<u8> = vec![143,190,90,218,196,30,51,222];
+        let mut data_bz: Vec<u8> = vec![143, 190, 90, 218, 196, 30, 51, 222];
         data_bz.extend(amount_in.to_le_bytes());
-        data_bz.extend(amount_out.to_le_bytes());
+        data_bz.extend(min_amount_out.to_le_bytes());
 
         MsgTransaction {
+            ty: "flux.svm.v1beta1.MsgTransaction".to_string(),
             sender,
             accounts,
             instructions: vec![Instruction {
-                program_index: vec![0],
+                program_index: vec![12],
                 accounts: vec![
                     InstructionAccount {
                         id_index: 0,
@@ -267,7 +267,7 @@ pub mod raydium {
                         is_writable: true,
                     },
                 ],
-                data: data_bz,
+                data: Binary::from(data_bz),
             }],
             compute_budget: 10_000_000,
         }
@@ -276,6 +276,8 @@ pub mod raydium {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgTransaction {
+    #[serde(rename = "@type")]
+    pub ty: String,
     /// Sender is the address of the actor that signed the message
     pub sender: String,
     /// Accounts are the cosmos addresses that sign this message

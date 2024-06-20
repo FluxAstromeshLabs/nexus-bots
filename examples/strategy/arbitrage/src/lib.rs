@@ -1,7 +1,7 @@
-pub mod wasm;
 pub mod evm;
-pub mod test;
 pub mod svm;
+pub mod test;
+pub mod wasm;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Isqrt;
 use cosmwasm_std::{

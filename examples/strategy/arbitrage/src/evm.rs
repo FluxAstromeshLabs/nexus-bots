@@ -1,4 +1,5 @@
 use cosmwasm_std::Binary;
+use serde::{Serialize, Deserialize};
 
 pub mod uniswap {
     use cosmwasm_std::{Binary, Uint256};
@@ -106,10 +107,24 @@ pub mod uniswap {
 }
 
 // more dapp types goes here
-
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgExecuteContract {
+    #[serde(rename = "@type")]
+    pub ty: String,
     pub sender: String,
     pub contract_address: Binary,
     pub calldata: Binary,
     pub input_amount: Binary,
+}
+
+impl MsgExecuteContract {
+    pub fn new(sender: String, contract_address: Binary, calldata: Binary, input_amount: Binary) -> Self {
+        MsgExecuteContract {
+            ty: "flux.evm.v1beta1.MsgExecuteContract".to_string(),
+            sender,
+            contract_address,
+            calldata,
+            input_amount,
+        }
+    }
 }

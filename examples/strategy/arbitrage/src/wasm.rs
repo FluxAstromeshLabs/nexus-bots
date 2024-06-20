@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin, Uint256};
+use cosmwasm_std::{Binary, Coin};
 use serde::{Deserialize, Serialize};
 
 pub mod astroport {
@@ -33,9 +33,10 @@ pub mod astroport {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgExecuteContract {
+    #[serde(rename = "@type")]
+    pub ty: String,
     /// Sender is the actor that signed the messages
     pub sender: String,
     /// Contract is the address of the smart contract
@@ -44,4 +45,16 @@ pub struct MsgExecuteContract {
     pub msg: Binary,
     /// SentFunds are coins that are transferred to the contract on execution
     pub sent_funds: Vec<Coin>,
+}
+
+impl MsgExecuteContract {
+    pub fn new(sender: String, contract: String, msg: Binary, sent_funds: Vec<Coin>) -> Self {
+        MsgExecuteContract {
+            ty: "cosmwasm.wasm.v1beta1.MsgExecuteContract".to_string(),
+            sender,
+            contract,
+            msg,
+            sent_funds,
+        }
+    }
 }
