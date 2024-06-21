@@ -2,7 +2,7 @@ use cosmwasm_std::Binary;
 use serde::{Deserialize, Serialize};
 
 pub mod uniswap {
-    use cosmwasm_std::{Binary, Int256, Uint256};
+    use cosmwasm_std::{Binary, Int256, StdError, Uint256};
     use serde::{Deserialize, Serialize};
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct PoolKey {
@@ -64,6 +64,7 @@ pub mod uniswap {
                 hooks,
             }
         }
+        // ethabi (getrandom())
 
         // x: 9244377900000000000000000000000017cf225befbdc683a48db215305552b3897906f600000000000000000000000018ab0f92ffb8b4f07f2d95b193bafd377ab25cc40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffec7800000000000000000000000000000000000000eaf261a5dfcea000000000000000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000
         pub fn serialize(&self) -> Vec<u8> {
@@ -113,34 +114,39 @@ pub mod uniswap {
         pub lp_fee: u32,
     }
 
-    fn signed_big_int_from_bytes(b: &[u8]) -> Int256 {
-        Int256::from_be_bytes(b.try_into().expect("Slice with incorrect length"))
+    fn left_pad(input: &[u8], expected_len: usize) -> Result<Vec<u8>, StdError> {
+        if input.len() > expected_len {
+            return Err(StdError::generic_err("input len must not exceeds expected len"))
+        }
+    
+        let mut padded = vec![0u8; expected_len]; 
+        let start_index = expected_len - input.len();
+        padded[start_index..].copy_from_slice(&input);
+    
+        Ok(padded)
     }
 
-    pub fn parse_pool_info(data: &[u8]) -> Result<PoolInfo, String> {
+    fn signed_big_int_from_bytes(b: &[u8]) -> Result<Int256, StdError> {
+        Ok(Int256::from_be_bytes(left_pad(b, 32)?.try_into().expect("Slice with incorrect length")))
+    }
+
+    pub fn parse_pool_info(data: &[u8]) -> Result<PoolInfo, cosmwasm_std::StdError> {
         if data.len() != 32 {
-            return Err("input data must be 32 bytes".to_string());
+            return Err(StdError::generic_err("input data must be 32 bytes".to_string()));
         }
 
         let sqrt_price_x96 = Uint256::from_be_bytes(
-            data[12..32]
-                .try_into()
-                .expect("Slice with incorrect length"),
+            left_pad(&data[12..32], 32)?.as_slice().try_into().unwrap(),
         );
 
         let tick_bytes = &data[9..12];
-        let tick = signed_big_int_from_bytes(tick_bytes);
+        let tick = signed_big_int_from_bytes(tick_bytes)?;
 
         let protocol_fee_bytes = &data[6..9];
-        let protocol_fee = u32::from_be_bytes([
-            0,
-            protocol_fee_bytes[0],
-            protocol_fee_bytes[1],
-            protocol_fee_bytes[2],
-        ]);
+        let protocol_fee = u32::from_be_bytes(left_pad(protocol_fee_bytes, 4)?.try_into().unwrap());
 
         let lp_fee_bytes = &data[3..6];
-        let lp_fee = u32::from_be_bytes([0, lp_fee_bytes[0], lp_fee_bytes[1], lp_fee_bytes[2]]);
+        let lp_fee = u32::from_be_bytes(left_pad(lp_fee_bytes, 4)?.try_into().unwrap());
 
         Ok(PoolInfo {
             sqrt_price_x96,
