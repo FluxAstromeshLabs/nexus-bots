@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 pub mod uniswap {
     use cosmwasm_std::{Binary, Int256, StdError, Uint256};
     use serde::{Deserialize, Serialize};
+
+    use crate::astromesh::{FISInstruction, Swap};
+
+    use super::MsgExecuteContract;
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct PoolKey {
         /// @notice The lower currency of the pool, sorted numerically
@@ -154,6 +158,18 @@ pub mod uniswap {
             protocol_fee,
             lp_fee,
         })
+    }
+
+    // // TODO: Fill in
+    pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
+        // let pool_action_address = hex::decode("e2f81b30e1d47dffdbb6ab41ec5f0572705b026d").unwrap();
+        // let msg = MsgExecuteContract::new(
+        //     sender, 
+        //     pool_action_address, 
+        //     // serialize_swap_calldata(), 
+        //     input_amount
+        // );
+        Err(StdError::generic_err("unimplemented"))
     }
 }
 

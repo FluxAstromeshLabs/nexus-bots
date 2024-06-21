@@ -1,135 +1,16 @@
 use cosmwasm_std::Binary;
 use serde::{Deserialize, Serialize};
 
-/*
-{
-  "sender": "lux1cml96vmptgw99syqrrz8az79xer2pcgp209sv4",
-  "accounts": [
-    "GonQpn9zzCF2rD521AiYg1RFpC4aFEzJ8RwC9XDi54L6",
-    "3LLwUBAjxx3sueJex7tjMCDRsTXnWdifmH3pmKcLs6ft",
-    "DbWxCi22jGDa7cJDmijRHiYHac2TFbmzUMCnxd8nVp4A",
-    "TL89ZcvzEAZhbAXyXB83vhwVNDafPSRHCVvApL1trPT",
-    "8a9wZcBo39FnRnBJXfd77VnSBaw3bjjQxctVkK9tvM3s",
-    "HWXu89yPn2VgXLVmUExFaNwQyE2KS5CrBd86u1XnDhk",
-    "G7PDs2GToeRC4jkYh1a7hBqtU6Ss2R9K3KF7bMpqcW7W",
-    "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL",
-    "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2",
-    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "5GqSuujoC3QkLypS3RHibBYUK4pKJLgGqMyf1Mkt4ghb",
-    "4oFvCXEirbLCqK3i4aBmrgmt18Hf7KwBdjjfpUpEUMkA",
-    "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C"
-  ],
-  "instructions": [
-    {
-      "program_index": [
-        12
-      ],
-      "accounts": [
-        {
-          "id_index": 0,
-          "caller_index": 0,
-          "callee_index": 0,
-          "is_signer": true,
-          "is_writable": true
-        },
-        {
-          "id_index": 7,
-          "caller_index": 7,
-          "callee_index": 1,
-          "is_signer": false,
-          "is_writable": false
-        },
-        {
-          "id_index": 8,
-          "caller_index": 8,
-          "callee_index": 2,
-          "is_signer": false,
-          "is_writable": false
-        },
-        {
-          "id_index": 1,
-          "caller_index": 1,
-          "callee_index": 3,
-          "is_signer": false,
-          "is_writable": true
-        },
-        {
-          "id_index": 2,
-          "caller_index": 2,
-          "callee_index": 4,
-          "is_signer": false,
-          "is_writable": true
-        },
-        {
-          "id_index": 3,
-          "caller_index": 3,
-          "callee_index": 5,
-          "is_signer": false,
-          "is_writable": true
-        },
-        {
-          "id_index": 4,
-          "caller_index": 4,
-          "callee_index": 6,
-          "is_signer": false,
-          "is_writable": true
-        },
-        {
-          "id_index": 5,
-          "caller_index": 5,
-          "callee_index": 7,
-          "is_signer": false,
-          "is_writable": true
-        },
-        {
-          "id_index": 9,
-          "caller_index": 9,
-          "callee_index": 8,
-          "is_signer": false,
-          "is_writable": false
-        },
-        {
-          "id_index": 9,
-          "caller_index": 9,
-          "callee_index": 8,
-          "is_signer": false,
-          "is_writable": false
-        },
-        {
-          "id_index": 10,
-          "caller_index": 10,
-          "callee_index": 10,
-          "is_signer": false,
-          "is_writable": false
-        },
-        {
-          "id_index": 11,
-          "caller_index": 11,
-          "callee_index": 11,
-          "is_signer": false,
-          "is_writable": false
-        },
-        {
-          "id_index": 6,
-          "caller_index": 6,
-          "callee_index": 12,
-          "is_signer": false,
-          "is_writable": true
-        }
-      ],
-      "data": "j75a2sQeM94A4fUFAAAAABfJgRMAAAAA"
-    }
-  ],
-  "compute_budget": 10000000
-}
-*/
 pub mod raydium {
-    use cosmwasm_std::{Binary, Uint128};
+    use cosmwasm_std::{to_json_binary, to_json_string, to_json_vec, Binary, StdError};
+
+    use crate::{astromesh::Swap, FISInstruction};
 
     use super::{Instruction, InstructionAccount, MsgTransaction};
 
     const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
+    const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 
     pub fn swap_base_input(
         sender: String,
@@ -272,6 +153,33 @@ pub mod raydium {
             compute_budget: 10_000_000,
         }
     }
+
+    pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
+        // TODO: Return error instead of unwrapping
+        let accounts = swap.raydium_accounts.unwrap();
+        
+        let msg = swap_base_input(
+            sender,
+            swap.input_amount.unwrap().i128() as u64, 
+            0, 
+            accounts.sender_svm_account, 
+            accounts.authority_account, 
+            accounts.amm_config_account, 
+            accounts.pool_state_account, 
+            accounts.input_token_account, 
+            accounts.output_token_account, 
+            accounts.input_vault, 
+            accounts.output_vault, 
+            accounts.input_token_mint, 
+            accounts.output_token_mint, 
+            accounts.observer_state);
+        Ok(FISInstruction{
+            plane: "SVM".to_string(),
+            action: "VM_INVOKE".to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&msg)?,
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -299,15 +207,20 @@ pub struct Instruction {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Account {
+    pub pubkey: Binary,
+    pub owner: Binary,
+    pub lamports: u64,
+    pub data: Binary,
+    pub executable: bool,
+    pub rent_epoch: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InstructionAccount {
-    /// IdIndex is the index of the account ID
     pub id_index: u32,
-    /// CallerIndex is the index of the caller account
     pub caller_index: u32,
-    /// CalleeIndex is the index of the callee account
     pub callee_index: u32,
-    /// IsSigner indicates if the account is a signer
     pub is_signer: bool,
-    /// IsWritable indicates if the account is writable
     pub is_writable: bool,
 }
