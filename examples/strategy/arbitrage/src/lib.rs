@@ -42,6 +42,7 @@ pub struct ArbitrageMsg {
 #[cw_serde]
 #[derive(Default)]
 pub struct Pool {
+    pub denom_plane: String,
     pub a: Uint128,
     pub b: Uint128,
 }
@@ -136,6 +137,7 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
             }
 
             Ok(Pool {
+                denom_plane: "SVM".to_string(),
                 a: Uint128::from(a as u128),
                 b: Uint128::from(b as u128),
             })
@@ -161,7 +163,10 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
                 (a, b) = (b, a);
             }
 
-            Ok(Pool { a, b })
+            Ok(Pool { 
+                denom_plane: "COSMOS".to_string(),
+                a, b 
+            })
         }
         _ => Err(StdError::generic_err("unsupported dex")),
     }
@@ -226,9 +231,9 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let sender = env.contract.address.to_string();
     let instructions = vec![
         swap(sender.clone(), src_swap)?,
-        astro_transfer(sender.clone(), src_swap.plane(), dst_swap.plane(), src_swap.clone().output_denom, optimal_y as u128),
+        astro_transfer(sender.clone(), src_pool.clone().denom_plane, dst_pool.clone().denom_plane, src_swap.clone().output_denom, optimal_y as u128),
         swap(sender.clone(), dst_swap)?,
-        astro_transfer(sender.clone(),  dst_swap.plane(), src_swap.plane(), dst_swap.clone().output_denom, expected_output as u128),
+        astro_transfer(sender.clone(),  dst_pool.denom_plane, src_pool.denom_plane, dst_swap.clone().output_denom, expected_output as u128),
     ];
 
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
