@@ -105,7 +105,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // i.e 1st swap: pool 1 usdt => btc
     // 2nd swap: pool 2: btc => usdt
     // but we need to make (a, b) coefficient aligned (means pool1 a's denom = pool2 a's denom)
-    let dst_pool  = parse_pool(src_swap, src_pool_raw, true);
+    let dst_pool  = parse_pool(dst_swap, dst_pool_raw, true);
 
     // calculate profit for target pool
     let (mut optimal_x, mut optimal_y) = (0i128, 0i128);

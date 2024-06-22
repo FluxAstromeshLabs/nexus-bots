@@ -1,4 +1,4 @@
-use cosmwasm_std::Binary;
+use cosmwasm_std::{from_json, Binary, StdError};
 use serde::{Deserialize, Serialize};
 
 pub mod raydium {
@@ -214,6 +214,12 @@ pub struct Account {
     pub data: Binary,
     pub executable: bool,
     pub rent_epoch: u64,
+}
+
+impl Account {
+    pub fn from_json_bytes(bz: &[u8]) -> Result<Self, StdError> {
+       from_json(bz)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
