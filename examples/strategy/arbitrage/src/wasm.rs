@@ -51,13 +51,14 @@ pub mod astroport {
     }
 
     pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
+        let clone_swap = swap.to_owned();
         let msg = MsgExecuteContract::new(
             sender.clone(),
-            swap.pool_id,
+            clone_swap.pool_id,
             to_json_binary(&AstroportMsg::Swap {
                 offer_asset: Asset {
                     info: AssetInfo::NativeToken {
-                        denom: swap.input_denom,
+                        denom: clone_swap.input_denom,
                     },
                     amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
                 },

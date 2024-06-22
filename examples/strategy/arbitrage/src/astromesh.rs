@@ -65,6 +65,17 @@ pub struct Swap {
     pub sqrt_price_limit: Option<Int256>,
 }
 
+impl Swap {
+    pub fn plane(&self) -> String {
+        match self.dex_name.as_str() {
+            "raydium" => "SVM".to_string(),
+            "uniswap" => "EVM".to_string(),
+            "astroport" => "WASM".to_string(),
+            _ => "".to_string(),
+        }
+    }
+}
+
 #[cw_serde]
 pub struct FISInstruction {
     plane: String,
