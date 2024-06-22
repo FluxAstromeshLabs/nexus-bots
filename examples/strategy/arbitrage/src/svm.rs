@@ -157,23 +157,24 @@ pub mod raydium {
     pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
         // TODO: Return error instead of unwrapping
         let accounts = swap.raydium_accounts.unwrap();
-        
+
         let msg = swap_base_input(
             sender,
-            swap.input_amount.unwrap().i128() as u64, 
-            0, 
-            accounts.sender_svm_account, 
-            accounts.authority_account, 
-            accounts.amm_config_account, 
-            accounts.pool_state_account, 
-            accounts.input_token_account, 
-            accounts.output_token_account, 
-            accounts.input_vault, 
-            accounts.output_vault, 
-            accounts.input_token_mint, 
-            accounts.output_token_mint, 
-            accounts.observer_state);
-        Ok(FISInstruction{
+            swap.input_amount.unwrap().i128() as u64,
+            0,
+            accounts.sender_svm_account,
+            accounts.authority_account,
+            accounts.amm_config_account,
+            accounts.pool_state_account,
+            accounts.input_token_account,
+            accounts.output_token_account,
+            accounts.input_vault,
+            accounts.output_vault,
+            accounts.input_token_mint,
+            accounts.output_token_mint,
+            accounts.observer_state,
+        );
+        Ok(FISInstruction {
             plane: "SVM".to_string(),
             action: "VM_INVOKE".to_string(),
             address: "".to_string(),
@@ -218,7 +219,7 @@ pub struct Account {
 
 impl Account {
     pub fn from_json_bytes(bz: &[u8]) -> Result<Self, StdError> {
-       from_json(bz)
+        from_json(bz)
     }
 }
 

@@ -120,28 +120,35 @@ pub mod uniswap {
 
     fn left_pad(input: &[u8], expected_len: usize) -> Result<Vec<u8>, StdError> {
         if input.len() > expected_len {
-            return Err(StdError::generic_err("input len must not exceeds expected len"))
+            return Err(StdError::generic_err(
+                "input len must not exceeds expected len",
+            ));
         }
-    
-        let mut padded = vec![0u8; expected_len]; 
+
+        let mut padded = vec![0u8; expected_len];
         let start_index = expected_len - input.len();
         padded[start_index..].copy_from_slice(&input);
-    
+
         Ok(padded)
     }
 
     fn signed_big_int_from_bytes(b: &[u8]) -> Result<Int256, StdError> {
-        Ok(Int256::from_be_bytes(left_pad(b, 32)?.try_into().expect("Slice with incorrect length")))
+        Ok(Int256::from_be_bytes(
+            left_pad(b, 32)?
+                .try_into()
+                .expect("Slice with incorrect length"),
+        ))
     }
 
     pub fn parse_pool_info(data: &[u8]) -> Result<PoolInfo, cosmwasm_std::StdError> {
         if data.len() != 32 {
-            return Err(StdError::generic_err("input data must be 32 bytes".to_string()));
+            return Err(StdError::generic_err(
+                "input data must be 32 bytes".to_string(),
+            ));
         }
 
-        let sqrt_price_x96 = Uint256::from_be_bytes(
-            left_pad(&data[12..32], 32)?.as_slice().try_into().unwrap(),
-        );
+        let sqrt_price_x96 =
+            Uint256::from_be_bytes(left_pad(&data[12..32], 32)?.as_slice().try_into().unwrap());
 
         let tick_bytes = &data[9..12];
         let tick = signed_big_int_from_bytes(tick_bytes)?;
@@ -164,9 +171,9 @@ pub mod uniswap {
     pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
         // let pool_action_address = hex::decode("e2f81b30e1d47dffdbb6ab41ec5f0572705b026d").unwrap();
         // let msg = MsgExecuteContract::new(
-        //     sender, 
-        //     pool_action_address, 
-        //     // serialize_swap_calldata(), 
+        //     sender,
+        //     pool_action_address,
+        //     // serialize_swap_calldata(),
         //     input_amount
         // );
         Err(StdError::generic_err("unimplemented"))

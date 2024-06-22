@@ -5,7 +5,9 @@ pub mod astroport {
     use std::str::FromStr;
 
     use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::{to_json_binary, to_json_string, to_json_vec, Addr, Decimal, StdError, Uint128};
+    use cosmwasm_std::{
+        to_json_binary, to_json_string, to_json_vec, Addr, Decimal, StdError, Uint128,
+    };
 
     use crate::{astromesh::Swap, FISInstruction};
 
@@ -50,19 +52,22 @@ pub mod astroport {
 
     pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
         let msg = MsgExecuteContract::new(
-            sender.clone(), 
-            swap.pool_id, 
-            to_json_binary(&AstroportMsg::Swap { 
+            sender.clone(),
+            swap.pool_id,
+            to_json_binary(&AstroportMsg::Swap {
                 offer_asset: Asset {
-                    info: AssetInfo::NativeToken { denom: swap.input_denom },
+                    info: AssetInfo::NativeToken {
+                        denom: swap.input_denom,
+                    },
                     amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
                 },
                 ask_asset_info: None,
-                belief_price: None, 
-                max_spread: Some(Decimal::from_str("0.5").unwrap()), 
+                belief_price: None,
+                max_spread: Some(Decimal::from_str("0.5").unwrap()),
                 to: Some(sender),
-            })?, 
-            vec![]);
+            })?,
+            vec![],
+        );
 
         Ok(FISInstruction {
             plane: "WASM".to_string(),
