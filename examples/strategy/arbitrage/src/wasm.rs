@@ -5,9 +5,7 @@ pub mod astroport {
     use std::str::FromStr;
 
     use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::{
-        to_json_binary, to_json_string, to_json_vec, Addr, Decimal, StdError, Uint128,
-    };
+    use cosmwasm_std::{to_json_binary, to_json_vec, Addr, Decimal, StdError, Uint128};
 
     use crate::{astromesh::Swap, FISInstruction};
 

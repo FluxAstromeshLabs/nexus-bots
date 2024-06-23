@@ -167,15 +167,8 @@ pub mod uniswap {
         })
     }
 
-    // // TODO: Fill in
-    pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
-        // let pool_action_address = hex::decode("e2f81b30e1d47dffdbb6ab41ec5f0572705b026d").unwrap();
-        // let msg = MsgExecuteContract::new(
-        //     sender,
-        //     pool_action_address,
-        //     // serialize_swap_calldata(),
-        //     input_amount
-        // );
+    // TODO: Fill in
+    pub fn compose_swap_fis(_sender: String, _swap: Swap) -> Result<FISInstruction, StdError> {
         Err(StdError::generic_err("unimplemented"))
     }
 }

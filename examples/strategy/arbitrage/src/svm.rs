@@ -2,7 +2,7 @@ use cosmwasm_std::{from_json, Binary, StdError};
 use serde::{Deserialize, Serialize};
 
 pub mod raydium {
-    use cosmwasm_std::{to_json_binary, to_json_string, to_json_vec, Binary, StdError};
+    use cosmwasm_std::{to_json_vec, Binary, StdError};
 
     use crate::{astromesh::Swap, FISInstruction};
 
@@ -10,7 +10,7 @@ pub mod raydium {
 
     const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
-    const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+    // const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 
     pub fn swap_base_input(
         sender: String,

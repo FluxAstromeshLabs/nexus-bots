@@ -6,7 +6,8 @@ pub mod wasm;
 use astromesh::{MsgAstroTransfer, Swap};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, Uint256
+    entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128,
+    MessageInfo, Response, StdResult, Uint128, Uint256,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
 use spl_token::solana_program::program_error::ProgramError;
@@ -60,6 +61,12 @@ pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
 }
 
+pub fn get_output_amount(a1: u128, b1: u128, x: u128) -> u128 {
+    // (a1-y)(b1 + x) = a1*b1
+    // y = a1 - a1*b1/(b1+x)
+    a1 - a1 * b1 / (b1 + x)
+}
+
 pub fn get_profit_at_x(a1: u128, b1: u128, a2: u128, b2: u128, x: u128) -> i128 {
     (b2 - (a2 * b2) / (a2 + a1 - a1 * b1 / (b1 + x)) - x) as i128
 }
@@ -82,13 +89,9 @@ pub fn get_max_profit_point(a1: u128, b1: u128, a2: u128, b2: u128) -> (i128, i1
 pub fn swap(sender: String, swap: &Swap) -> Result<FISInstruction, StdError> {
     let cloned_swap = swap.to_owned();
     match swap.dex_name.as_str() {
-        RAYDIUM => {
-            raydium::compose_swap_fis(sender, cloned_swap)
-        },
-        ASTROPORT => {
-            astroport::compose_swap_fis(sender, cloned_swap)
-        }
-        _ => Err(StdError::generic_err("unsupported dex"))
+        RAYDIUM => raydium::compose_swap_fis(sender, cloned_swap),
+        ASTROPORT => astroport::compose_swap_fis(sender, cloned_swap),
+        _ => Err(StdError::generic_err("unsupported dex")),
     }
 }
 
@@ -103,10 +106,17 @@ pub fn astro_transfer(
         plane: "COSMOS".to_string(),
         action: "COSMOS_INVOKE".to_string(),
         address: "".to_string(),
-        msg: to_json_vec(&MsgAstroTransfer::new(sender.clone(), sender, src_plane, dst_plane, Coin {
-            denom,
-            amount: Uint128::from(amount),
-        })).unwrap(),
+        msg: to_json_vec(&MsgAstroTransfer::new(
+            sender.clone(),
+            sender,
+            src_plane,
+            dst_plane,
+            Coin {
+                denom,
+                amount: Uint128::from(amount),
+            },
+        ))
+        .unwrap(),
     }
 }
 
@@ -163,9 +173,10 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
                 (a, b) = (b, a);
             }
 
-            Ok(Pool { 
+            Ok(Pool {
                 denom_plane: "COSMOS".to_string(),
-                a, b 
+                a,
+                b,
             })
         }
         _ => Err(StdError::generic_err("unsupported dex")),
@@ -179,15 +190,15 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // TODO: asserts with meaningful messages
     let src_pool_raw = msg.fis_input.get(0).unwrap();
     let dst_pool_raw = msg.fis_input.get(1).unwrap();
-    let src_swap = swaps.get(0).unwrap();
-    let mut dst_swap = swaps.get(1).unwrap();
+    let src_swap = swaps.get(0).unwrap().clone();
+    let mut dst_swap = swaps.get(1).unwrap().clone();
 
-    let src_pool = parse_pool(src_swap, src_pool_raw, false)?;
+    let src_pool = parse_pool(&src_swap, src_pool_raw, false)?;
     // reverse = true because on the 2nd swap, we do reverse denom swap
     // i.e 1st swap: pool 1 usdt => btc
     // 2nd swap: pool 2: btc => usdt
     // but we need to make (a, b) coefficient aligned (means pool1 a's denom = pool2 a's denom)
-    let dst_pool = parse_pool(dst_swap, dst_pool_raw, true)?;
+    let dst_pool = parse_pool(&dst_swap, dst_pool_raw, true)?;
 
     // calculate profit for target pool
     let (mut optimal_x, mut optimal_y) = (0i128, 0i128);
@@ -229,11 +240,26 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     // use the amount to buy
     let sender = env.contract.address.to_string();
+    let first_swap_output = get_output_amount(src_pool.a.u128(), src_pool.b.u128(), execute_amount);
+    dst_swap.input_amount = Some(Int128::new(first_swap_output as i128));
+
     let instructions = vec![
-        swap(sender.clone(), src_swap)?,
-        astro_transfer(sender.clone(), src_pool.clone().denom_plane, dst_pool.clone().denom_plane, src_swap.clone().output_denom, optimal_y as u128),
-        swap(sender.clone(), dst_swap)?,
-        astro_transfer(sender.clone(),  dst_pool.denom_plane, src_pool.denom_plane, dst_swap.clone().output_denom, expected_output as u128),
+        swap(sender.clone(), &src_swap)?,
+        astro_transfer(
+            sender.clone(),
+            src_pool.clone().denom_plane,
+            dst_pool.clone().denom_plane,
+            src_swap.clone().output_denom,
+            first_swap_output as u128,
+        ),
+        swap(sender.clone(), &dst_swap)?,
+        astro_transfer(
+            sender.clone(),
+            dst_pool.denom_plane,
+            src_pool.denom_plane,
+            dst_swap.clone().output_denom,
+            expected_output as u128,
+        ),
     ];
 
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
