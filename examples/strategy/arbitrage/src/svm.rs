@@ -231,3 +231,49 @@ pub struct InstructionAccount {
     pub is_signer: bool,
     pub is_writable: bool,
 }
+
+#[derive(Debug)]
+pub struct Pubkey([u8; 32]);
+
+impl Pubkey {
+    pub fn to_string(&self) -> String {
+        bs58::encode(self.0).into_string()
+    }
+
+    pub fn from_slice(bz: &[u8]) -> Result<Self, StdError> {
+        if bz.len() != 32 {
+            return Err(StdError::generic_err("pubkey must be 32 bytes"))
+        }
+
+        let mut pubkey: [u8; 32] = [0; 32];
+        pubkey.copy_from_slice(bz);
+        Ok(Self(pubkey))
+    }
+
+    pub fn from_string(s: String) -> Result<Self, StdError> {
+        let bz = bs58::decode(s.as_str()).into_vec().or_else(|e| Err(StdError::generic_err(e.to_string())))?;
+        Pubkey::from_slice(bz.as_slice())
+    }
+}
+
+// Simplified version of token account
+#[derive(Debug)]
+pub struct TokenAccount {
+    pub mint: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+}
+
+impl TokenAccount {
+    pub fn unpack(bz: &[u8]) -> Result<TokenAccount, StdError> {
+        if bz.len() < 72 {
+            return Err(StdError::generic_err("token account size must >= 72 bytes"));
+        }
+        
+        Ok(TokenAccount {
+            mint: Pubkey::from_slice(&bz[0..32])?,
+            owner: Pubkey::from_slice(&bz[32..64])?,
+            amount: u64::from_le_bytes(bz[64..72].try_into().unwrap()), // we know for sure it's 8 bytes => unwrap() is safe
+        })
+    }
+}

@@ -11,8 +11,12 @@ serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 schemars = "0.8.10"
 cosmwasm-schema = "2.0.1"
 hex = "0.4.3"
-spl-token = "4.0.1"
-curve25519-dalek = "=3.2.1"
+bs58 = "0.5.1"
+# spl-token = { version = "4.0.1", features = ["no-entrypoint"] }
+# curve25519-dalek = "=3.2.1"
+# getrandom = { version = "0.1.14", features = ["dummy"] }
+
+# TokenAccount => parse
 
 [patch.crates-io.curve25519-dalek]
 git = "https://github.com/solana-labs/curve25519-dalek.git"

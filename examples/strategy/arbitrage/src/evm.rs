@@ -7,7 +7,6 @@ pub mod uniswap {
 
     use crate::astromesh::{FISInstruction, Swap};
 
-    use super::MsgExecuteContract;
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct PoolKey {
         /// @notice The lower currency of the pool, sorted numerically

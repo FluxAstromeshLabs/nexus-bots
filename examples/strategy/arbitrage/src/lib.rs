@@ -10,17 +10,44 @@ use cosmwasm_std::{
     MessageInfo, Response, StdResult, Uint128, Uint256,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
-use spl_token::solana_program::program_error::ProgramError;
-use spl_token::solana_program::program_pack::Pack;
-use spl_token::state::Account as TokenAccount;
+// use spl_token::solana_program::program_error::ProgramError;
+// use spl_token::solana_program::program_pack::Pack;
+// use spl_token::state::Account as TokenAccount;
 use std::cmp::min;
 use std::vec::Vec;
-use svm::{raydium, Account};
+use svm::{raydium, Account, TokenAccount};
 use wasm::astroport::{self, AssetInfo};
 
 const RAYDIUM: &str = "raydium";
 const ASTROPORT: &str = "astroport";
 const UNISWAP: &str = "uniswap";
+
+
+#[cw_serde]
+pub struct InstantiateMsg {}
+
+#[cw_serde]
+pub enum ExecuteMsg {}
+
+#[entry_point]
+pub fn instantiate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: InstantiateMsg,
+) -> StdResult<Response> {
+    Ok(Response::new().add_attribute("method", "instantiate"))
+}
+
+#[entry_point]
+pub fn execute(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: ExecuteMsg,
+) -> StdResult<Response> {
+    Ok(Response::new().add_attribute("method", "execute"))
+}
 
 #[cw_serde]
 pub struct QueryMsg {
@@ -120,10 +147,6 @@ pub fn astro_transfer(
     }
 }
 
-fn svm_err_to_std<T>(e: ProgramError) -> Result<T, StdError> {
-    Err(StdError::generic_err(e.to_string()))
-}
-
 // always make sure the denom aligns across swap
 // means pool1.a_denom == pool2.a_denom otherwise the calculation will go wrong
 pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, StdError> {
@@ -131,11 +154,8 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
         RAYDIUM => {
             let token_0_vault_account = Account::from_json_bytes(input.data.get(0).unwrap())?;
             let token_1_vault_account = Account::from_json_bytes(input.data.get(1).unwrap())?;
-
-            let token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())
-                .or_else(svm_err_to_std)?;
-            let token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())
-                .or_else(svm_err_to_std)?;
+            let token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
+            let token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
             // TODO: more constraint as validate basic
             let (mut a, mut b) = (token_0_info.amount, token_1_info.amount);
             if token_0_info.mint.to_string() != swap.input_denom {
@@ -164,6 +184,7 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
             //     AssetInfo::Token { contract_addr } => contract_addr.to_string(),
             //     AssetInfo::NativeToken { denom } => denom,
             // };
+            
             let (mut a, mut b) = (asset_0.amount, asset_1.amount);
             if asset_0_denom != swap.input_denom {
                 (a, b) = (b, a);
