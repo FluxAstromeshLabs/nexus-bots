@@ -126,9 +126,13 @@ pub fn astro_transfer(
     sender: String,
     src_plane: String,
     dst_plane: String,
-    denom: String,
+    mut denom: String,
     amount: u128,
 ) -> FISInstruction {
+    if src_plane == "EVM" || src_plane == "SVM" {
+        denom = String::from("astro/") + &denom;
+    }
+
     FISInstruction {
         plane: "COSMOS".to_string(),
         action: "COSMOS_INVOKE".to_string(),

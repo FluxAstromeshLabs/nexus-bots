@@ -22,7 +22,7 @@ impl MsgAstroTransfer {
         coin: Coin,
     ) -> Self {
         MsgAstroTransfer {
-            ty: "flux.astromesh.v1beta1.AstroTransfer".to_string(),
+            ty: "/flux.astromesh.v1beta1.MsgAstroTransfer".to_string(),
             sender,
             receiver,
             src_plane,
