@@ -79,8 +79,8 @@ pub mod astroport {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgExecuteContract {
-    #[serde(rename = "@type")]
-    pub ty: String,
+    // #[serde(rename = "@type")]
+    // pub ty: String,
     /// Sender is the actor that signed the messages
     pub sender: String,
     /// Contract is the address of the smart contract
@@ -94,7 +94,7 @@ pub struct MsgExecuteContract {
 impl MsgExecuteContract {
     pub fn new(sender: String, contract: String, msg: Binary, sent_funds: Vec<Coin>) -> Self {
         MsgExecuteContract {
-            ty: "cosmwasm.wasm.v1beta1.MsgExecuteContract".to_string(),
+            // ty: "cosmwasm.wasm.v1beta1.MsgExecuteContract".to_string(),
             sender,
             contract,
             msg,

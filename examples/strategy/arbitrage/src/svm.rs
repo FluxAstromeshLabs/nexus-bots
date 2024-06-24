@@ -1,4 +1,4 @@
-use cosmwasm_std::{from_json, Binary, StdError};
+use cosmwasm_std::{from_json, Binary, StdError, Uint64};
 use serde::{Deserialize, Serialize};
 
 pub mod raydium {
@@ -50,11 +50,11 @@ pub mod raydium {
         data_bz.extend(min_amount_out.to_le_bytes());
 
         MsgTransaction {
-            ty: "flux.svm.v1beta1.MsgTransaction".to_string(),
+            // ty: "flux.svm.v1beta1.MsgTransaction".to_string(),
             sender,
             accounts,
             instructions: vec![Instruction {
-                program_index: vec![12],
+                program_index: vec![13],
                 accounts: vec![
                     InstructionAccount {
                         id_index: 0,
@@ -170,8 +170,8 @@ pub mod raydium {
             accounts.output_token_account,
             accounts.input_vault,
             accounts.output_vault,
-            accounts.input_token_mint,
-            accounts.output_token_mint,
+            swap.input_denom,
+            swap.output_denom,
             accounts.observer_state,
         );
         Ok(FISInstruction {
@@ -185,8 +185,8 @@ pub mod raydium {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgTransaction {
-    #[serde(rename = "@type")]
-    pub ty: String,
+    // #[serde(rename = "@type")]
+    // pub ty: String,
     /// Sender is the address of the actor that signed the message
     pub sender: String,
     /// Accounts are the cosmos addresses that sign this message
@@ -211,10 +211,10 @@ pub struct Instruction {
 pub struct Account {
     pub pubkey: Binary,
     pub owner: Binary,
-    pub lamports: u64,
+    pub lamports: Uint64, // JSON cdc returns string (with quotes), standard u64 can't be parsed
     pub data: Binary,
     pub executable: bool,
-    pub rent_epoch: u64,
+    pub rent_epoch: Uint64,
 }
 
 impl Account {
@@ -264,6 +264,8 @@ pub struct TokenAccount {
     pub amount: u64,
 }
 
+// "getrandom" dep
+
 impl TokenAccount {
     pub fn unpack(bz: &[u8]) -> Result<TokenAccount, StdError> {
         if bz.len() < 72 {
@@ -277,3 +279,5 @@ impl TokenAccount {
         })
     }
 }
+
+// spl-token library => static check fail

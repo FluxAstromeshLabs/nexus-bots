@@ -184,7 +184,7 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
             //     AssetInfo::Token { contract_addr } => contract_addr.to_string(),
             //     AssetInfo::NativeToken { denom } => denom,
             // };
-            
+
             let (mut a, mut b) = (asset_0.amount, asset_1.amount);
             if asset_0_denom != swap.input_denom {
                 (a, b) = (b, a);
@@ -220,7 +220,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // 2nd swap: pool 2: btc => usdt
     // but we need to make (a, b) coefficient aligned (means pool1 a's denom = pool2 a's denom)
     let dst_pool = parse_pool(&dst_swap, dst_pool_raw, true)?;
-
+    _deps.api.debug(format!("pool s {:#?}, pool d: {:#?}", src_pool, dst_pool).as_str());
     // calculate profit for target pool
     let (mut optimal_x, mut optimal_y) = (0i128, 0i128);
 
@@ -247,6 +247,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         optimal_x as u128,
         src_swap.input_amount.unwrap().i128() as u128,
     );
+
     let expected_output = if execute_amount == optimal_x as u128 {
         optimal_y
     } else {
@@ -259,7 +260,6 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )
     };
 
-    // use the amount to buy
     let sender = env.contract.address.to_string();
     let first_swap_output = get_output_amount(src_pool.a.u128(), src_pool.b.u128(), execute_amount);
     dst_swap.input_amount = Some(Int128::new(first_swap_output as i128));

@@ -42,8 +42,6 @@ pub struct RaydiumAccounts {
     pub output_token_account: String,
     pub input_vault: String,
     pub output_vault: String,
-    pub input_token_mint: String,
-    pub output_token_mint: String,
     pub observer_state: String,
 }
 

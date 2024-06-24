@@ -145,7 +145,7 @@ pub mod uniswap {
                 "input data must be 32 bytes".to_string(),
             ));
         }
-
+        
         let sqrt_price_x96 =
             Uint256::from_be_bytes(left_pad(&data[12..32], 32)?.as_slice().try_into().unwrap());
 
