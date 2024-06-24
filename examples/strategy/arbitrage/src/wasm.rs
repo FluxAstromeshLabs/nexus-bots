@@ -5,7 +5,7 @@ pub mod astroport {
     use std::str::FromStr;
 
     use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::{to_json_binary, to_json_vec, Addr, Decimal, StdError, Uint128};
+    use cosmwasm_std::{to_json_binary, to_json_vec, Addr, Coin, Decimal, StdError, Uint128};
 
     use crate::{astromesh::Swap, FISInstruction};
 
@@ -49,14 +49,14 @@ pub mod astroport {
     }
 
     pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
-        let clone_swap = swap.to_owned();
+        let cloned_swap = swap.to_owned();
         let msg = MsgExecuteContract::new(
             sender.clone(),
-            clone_swap.pool_id,
+            cloned_swap.pool_id,
             to_json_binary(&AstroportMsg::Swap {
                 offer_asset: Asset {
                     info: AssetInfo::NativeToken {
-                        denom: clone_swap.input_denom,
+                        denom: cloned_swap.input_denom,
                     },
                     amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
                 },
@@ -65,7 +65,12 @@ pub mod astroport {
                 max_spread: Some(Decimal::from_str("0.5").unwrap()),
                 to: Some(sender),
             })?,
-            vec![],
+            vec![
+                Coin {
+                    amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
+                    denom: swap.input_denom,
+                }
+            ],
         );
 
         Ok(FISInstruction {
@@ -88,17 +93,17 @@ pub struct MsgExecuteContract {
     /// Msg is a JSON encoded message to be passed to the contract
     pub msg: Binary,
     /// SentFunds are coins that are transferred to the contract on execution
-    pub sent_funds: Vec<Coin>,
+    pub funds: Vec<Coin>,
 }
 
 impl MsgExecuteContract {
-    pub fn new(sender: String, contract: String, msg: Binary, sent_funds: Vec<Coin>) -> Self {
+    pub fn new(sender: String, contract: String, msg: Binary, funds: Vec<Coin>) -> Self {
         MsgExecuteContract {
             // ty: "cosmwasm.wasm.v1beta1.MsgExecuteContract".to_string(),
             sender,
             contract,
             msg,
-            sent_funds,
+            funds,
         }
     }
 }
