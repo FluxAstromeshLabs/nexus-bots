@@ -65,12 +65,10 @@ pub mod astroport {
                 max_spread: Some(Decimal::from_str("0.5").unwrap()),
                 to: Some(sender),
             })?,
-            vec![
-                Coin {
-                    amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
-                    denom: swap.input_denom,
-                }
-            ],
+            vec![Coin {
+                amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
+                denom: swap.input_denom,
+            }],
         );
 
         Ok(FISInstruction {

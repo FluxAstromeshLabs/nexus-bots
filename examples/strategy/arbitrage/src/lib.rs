@@ -6,14 +6,12 @@ pub mod wasm;
 use astromesh::{MsgAstroTransfer, Swap};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128,
-    MessageInfo, Response, StdResult, Uint128, Uint256,
+    entry_point, to_json_binary, to_json_vec, Binary, Coin, Decimal256, Deps, DepsMut, Env, Int128,
+    Int256, MessageInfo, Response, StdResult, Uint128, Uint256,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
-// use spl_token::solana_program::program_error::ProgramError;
-// use spl_token::solana_program::program_pack::Pack;
-// use spl_token::state::Account as TokenAccount;
 use std::cmp::min;
+use std::str::FromStr;
 use std::vec::Vec;
 use svm::{raydium, Account, TokenAccount};
 use wasm::astroport::{self, AssetInfo};
@@ -21,7 +19,6 @@ use wasm::astroport::{self, AssetInfo};
 const RAYDIUM: &str = "raydium";
 const ASTROPORT: &str = "astroport";
 const UNISWAP: &str = "uniswap";
-
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -70,9 +67,10 @@ pub struct ArbitrageMsg {
 #[cw_serde]
 #[derive(Default)]
 pub struct Pool {
+    pub dex: String,
     pub denom_plane: String,
-    pub a: Uint128,
-    pub b: Uint128,
+    pub a: Int256,
+    pub b: Int256,
 }
 
 #[cw_serde]
@@ -88,50 +86,40 @@ pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
 }
 
-pub fn get_output_amount(a1: u128, b1: u128, x: u128) -> u128 {
+pub fn get_output_amount(a1: Int256, b1: Int256, x: Int256) -> Int256 {
     // (a1+x)(b1-y) = a1*b1
-    // y = a1 - a1*b1/(b1+x)
-    b1 - a1 * b1 / (a1 + x)
+    // y = a1 - a1*b1/(b1+x) = a1*x / (b1 + x)
+    (a1 * x) / (b1 + x)
 }
 
-pub fn get_profit_at_x(a1: u128, b1: u128, a2: u128, b2: u128, x: u128) -> i128 {
+pub fn get_profit_at_x(a1: Int256, b1: Int256, a2: Int256, b2: Int256, x: Int256) -> Int256 {
     // (a2 - m) (b2 + y) = a2*b2
     // a2 - a2*b2/(b2+y)
-    (a2 - (a2 * b2) / (b2 + b1 - a1 * b1 / (a1 + x)) - x) as i128
+    // (a2 - (a2 * b2) / (b2 + b1 - a1 * b1 / (a1 + x)) - x) as i128
+    a2 - a2 * b2 / (b2 + b1 - a1 * b1 / (a1 + x)) - x
 }
 
-// [2024-06-24T14:36:24.885155Z]: pool s Pool {
-//     denom_plane: "COSMOS",
-//     a: Uint128(
-//         30000000004,
-//     ),
-//     b: Uint128(
-//         29999999998,
-//     ),
-// }, pool d: Pool {
-//     denom_plane: "SVM",
-//     a: Uint128(
-//         139304175643,
-//     ),
-//     b: Uint128(
-//         201000000,
-//     ),
-// }, optimal x: 5056636321, optimal y: -5050580691 (gas remaining: 23405561600000)
+pub fn to_uint256(i: Int256) -> Uint256 {
+    Uint256::from_be_bytes(i.to_be_bytes())
+}
 
+pub fn to_int256(i: Uint256) -> Int256 {
+    Int256::from_be_bytes(i.to_be_bytes())
+}
+
+pub fn to_u128(i: Int256) -> u128 {
+    u128::from_be_bytes(i.to_be_bytes()[16..32].try_into().unwrap())
+}
 
 // contract: use x a1 to get b1
 // use a1 as a2 to get b2 => profit = output (b1) - input (b1)
-pub fn get_max_profit_point(a1: u128, b1: u128, a2: u128, b2: u128) -> (i128, i128) {
+pub fn get_max_profit_point(a1: Int256, b1: Int256, a2: Int256, b2: Int256) -> (Int256, Int256) {
     // TODO: prevent overflow
-    let optimal_x = (Isqrt::isqrt(a1 * b1)
-        .checked_mul(Isqrt::isqrt(a2 * b2))
-        .unwrap()
-        - a1 * b2)
-        / (b1 + b2);
-    (
-        optimal_x as i128,
-        get_profit_at_x(a1, b1, a2, b2, optimal_x),
-    )
+    let optimal_x =
+        (to_int256(Isqrt::isqrt(to_uint256(a1 * b1)) * Isqrt::isqrt(to_uint256(a2 * b2)))
+            - a1 * b2)
+            / (b1 + b2);
+    (optimal_x, get_profit_at_x(a1, b1, a2, b2, optimal_x))
 }
 
 pub fn swap(sender: String, swap: &Swap) -> Result<FISInstruction, StdError> {
@@ -192,9 +180,10 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
             }
 
             Ok(Pool {
+                dex: RAYDIUM.to_string(),
                 denom_plane: "SVM".to_string(),
-                a: Uint128::from(a as u128),
-                b: Uint128::from(b as u128),
+                a: Int256::from_i128(a as i128),
+                b: Int256::from_i128(b as i128),
             })
         }
         ASTROPORT => {
@@ -220,12 +209,34 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
             }
 
             Ok(Pool {
+                dex: ASTROPORT.to_string(),
                 denom_plane: "COSMOS".to_string(),
-                a,
-                b,
+                a: Int256::from(a.u128()),
+                b: Int256::from(b.u128()),
             })
         }
         _ => Err(StdError::generic_err("unsupported dex")),
+    }
+}
+
+// this estimates optimal_x with pool fee
+pub fn adjust_optimal_x(optimal_x: Int256, src_pool: Pool, dst_pool: Pool) -> Int256 {
+    // ratio = a1/a_decimal/(b1 / b_decimal) / (a2/a_decimal/(b2/b_decimal)) - 1
+    let a1 = src_pool.a;
+    let b1 = src_pool.b;
+    let a2 = dst_pool.a;
+    let b2 = dst_pool.b;
+    let one = Int256::from_i128(1_000_000i128);
+    let ratio = a1 * b2 * one / (b1 * a2) - one;
+    // price change > -1%
+    if ratio >= Int256::from_i128(-10_000i128) {
+        optimal_x * Int256::from(90) / Int256::from(100)
+    }
+    // price change > -2%
+    else if ratio >= Int256::from_i128(-20_000i128) {
+        optimal_x * Int256::from(95) / Int256::from(100)
+    } else {
+        optimal_x * Int256::from(99) / Int256::from(100)
     }
 }
 
@@ -246,22 +257,17 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // but we need to make (a, b) coefficient aligned (means pool1 a's denom = pool2 a's denom)
     let dst_pool = parse_pool(&dst_swap, dst_pool_raw, true)?;
     // calculate profit for target pool
-    let (mut optimal_x, mut optimal_y) = (0i128, 0i128);
+    let (optimal_x, optimal_y) =
+        get_max_profit_point(src_pool.a, src_pool.b, dst_pool.a, dst_pool.b);
 
-    let (x, y) = get_max_profit_point(
-        src_pool.a.u128(),
-        src_pool.b.u128(),
-        dst_pool.a.u128(),
-        dst_pool.b.u128(),
+    _deps.api.debug(
+        format!(
+            "pool s {:#?}, pool d: {:#?}, optimal x: {}, optimal y: {}",
+            src_pool, dst_pool, optimal_x, optimal_y
+        )
+        .as_str(),
     );
-
-    _deps.api.debug(format!("pool s {:#?}, pool d: {:#?}, optimal x: {}, optimal y: {}", src_pool, dst_pool, x, y).as_str());
-    if y > 0 {
-        optimal_y = y;
-        optimal_x = x;
-    }
-
-    if optimal_x <= 0 || optimal_y < 0 {
+    if optimal_x <= Int256::zero() || optimal_y <= Int256::zero() {
         // do nothing if there is no profit or can't reach that amount
         return Ok(to_json_binary(&StrategyOutput {
             instructions: vec![],
@@ -269,28 +275,30 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         .unwrap());
     }
 
+    let optimal_x = adjust_optimal_x(optimal_x, src_pool.clone(), dst_pool.clone());
+
     let execute_amount = min(
-        optimal_x as u128,
-        src_swap.input_amount.unwrap().i128() as u128,
+        optimal_x,
+        Int256::from(src_swap.input_amount.unwrap().i128()),
     );
 
-    let expected_output = if execute_amount == optimal_x as u128 {
+    let expected_output = if execute_amount == optimal_x {
         optimal_y
     } else {
         get_profit_at_x(
-            src_pool.a.u128(),
-            src_pool.b.u128(),
-            dst_pool.a.u128(),
-            dst_pool.b.u128(),
+            src_pool.a,
+            src_pool.b,
+            dst_pool.a,
+            dst_pool.b,
             execute_amount,
         )
     };
 
     let sender = env.contract.address.to_string();
-    let first_swap_output = get_output_amount(src_pool.a.u128(), src_pool.b.u128(), execute_amount);
-    _deps.api.debug(format!("optimal_x: {}, swapped {} for {}", optimal_x, execute_amount, first_swap_output).as_str());
-    
-    dst_swap.input_amount = Some(Int128::new(first_swap_output as i128));
+    let first_swap_output = get_output_amount(src_pool.a, src_pool.b, execute_amount);
+    dst_swap.input_amount = Some(Int128::from_be_bytes(
+        first_swap_output.to_be_bytes()[16..32].try_into().unwrap(),
+    ));
     let instructions = vec![
         swap(sender.clone(), &src_swap)?,
         astro_transfer(
@@ -298,7 +306,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             src_pool.clone().denom_plane,
             dst_pool.clone().denom_plane,
             src_swap.clone().output_denom,
-            first_swap_output as u128,
+            to_u128(first_swap_output),
         ),
         swap(sender.clone(), &dst_swap)?,
         astro_transfer(
@@ -306,7 +314,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             dst_pool.denom_plane,
             src_pool.denom_plane,
             dst_swap.clone().output_denom,
-            expected_output as u128,
+            to_u128(expected_output),
         ),
     ];
 

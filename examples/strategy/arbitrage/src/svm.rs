@@ -241,7 +241,7 @@ impl Pubkey {
 
     pub fn from_slice(bz: &[u8]) -> Result<Self, StdError> {
         if bz.len() != 32 {
-            return Err(StdError::generic_err("pubkey must be 32 bytes"))
+            return Err(StdError::generic_err("pubkey must be 32 bytes"));
         }
 
         let mut pubkey: [u8; 32] = [0; 32];
@@ -250,7 +250,9 @@ impl Pubkey {
     }
 
     pub fn from_string(s: String) -> Result<Self, StdError> {
-        let bz = bs58::decode(s.as_str()).into_vec().or_else(|e| Err(StdError::generic_err(e.to_string())))?;
+        let bz = bs58::decode(s.as_str())
+            .into_vec()
+            .or_else(|e| Err(StdError::generic_err(e.to_string())))?;
         Pubkey::from_slice(bz.as_slice())
     }
 }
@@ -270,7 +272,7 @@ impl TokenAccount {
         if bz.len() < 72 {
             return Err(StdError::generic_err("token account size must >= 72 bytes"));
         }
-        
+
         Ok(TokenAccount {
             mint: Pubkey::from_slice(&bz[0..32])?,
             owner: Pubkey::from_slice(&bz[32..64])?,
