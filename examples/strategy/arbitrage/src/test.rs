@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Binary, Decimal256};
+    use cosmwasm_std::{Binary, Int256};
 
-    use crate::{evm, svm::TokenAccount};
+    use crate::{evm, get_arbitrage_swap_outputs, svm::TokenAccount, ASTROPORT, RAYDIUM};
     #[test]
     fn test_parse_pool_info() {
         let data = hex::decode("000000000bb800000001b326000000000000010655c244ab2aaa152ba8352d52")
@@ -31,5 +31,28 @@ mod tests {
             "GonQpn9zzCF2rD521AiYg1RFpC4aFEzJ8RwC9XDi54L6".to_string()
         );
         assert_eq!(acc.amount, 399000000);
+    }
+
+    #[test]
+    fn test_arbitrage_profit() {
+        let input_amount = Int256::from(4990212513i128);
+        let (first_swap, second_swap) = get_arbitrage_swap_outputs(
+            &crate::Pool { 
+                dex_name: ASTROPORT.to_string(), 
+                denom_plane: "COSMOS".to_string(), 
+                a: 10000000000i128.into(), 
+                b: 10000000000i128.into(), 
+                fee_rate: Int256::from_i128(10000),
+            }, 
+            &crate::Pool {
+                dex_name: RAYDIUM.to_string(), 
+                denom_plane: "SVM".to_string(), 
+                a: 139304175643i128.into(), 
+                b: 201000000i128.into(), 
+                fee_rate: Int256::from_i128(1000),
+            }, 
+            input_amount,
+        );
+        assert!((second_swap - input_amount).gt(&Int256::zero()) == true);
     }
 }

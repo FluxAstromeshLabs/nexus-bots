@@ -10,15 +10,17 @@ use cosmwasm_std::{
     Int256, MessageInfo, Response, StdResult, Uint128, Uint256,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
+use std::borrow::Borrow;
 use std::cmp::min;
-use std::str::FromStr;
 use std::vec::Vec;
 use svm::{raydium, Account, TokenAccount};
 use wasm::astroport::{self, AssetInfo};
 
 const RAYDIUM: &str = "raydium";
 const ASTROPORT: &str = "astroport";
-const UNISWAP: &str = "uniswap";
+const UNISWAP: &str = "uniswap"; // to be supported
+
+const BPS: i128 = 1000000i128;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -67,10 +69,11 @@ pub struct ArbitrageMsg {
 #[cw_serde]
 #[derive(Default)]
 pub struct Pool {
-    pub dex: String,
+    pub dex_name: String,
     pub denom_plane: String,
     pub a: Int256,
     pub b: Int256,
+    pub fee_rate: Int256,
 }
 
 #[cw_serde]
@@ -86,17 +89,40 @@ pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
 }
 
-pub fn get_output_amount(a1: Int256, b1: Int256, x: Int256) -> Int256 {
-    // (a1+x)(b1-y) = a1*b1
-    // y = a1 - a1*b1/(b1+x) = a1*x / (b1 + x)
-    (a1 * x) / (b1 + x)
+pub fn get_output_amount(pool: &Pool, x: Int256, a_for_b: bool) -> Int256 {
+    // (a+x)(b-y) = ab
+    // y = b - a*b/(a+x) = xb/(a + x)
+    let bps = Int256::from_i128(BPS);
+    match pool.dex_name.as_str() {
+        // astroport applies fee rate after swap => a1*x / (b1 + x) * (1-fee_rate)
+        ASTROPORT => if a_for_b { 
+            (pool.b * x) * (bps - pool.fee_rate) / ((pool.a + x) * bps) 
+        } else { 
+            (pool.a * x) * (bps - pool.fee_rate) / ((pool.b + x) * bps) 
+        }
+
+        // raydium applies fee rate before swap
+        RAYDIUM => {
+            let x = x * (bps - pool.fee_rate) / bps;
+
+            if a_for_b {
+                (pool.b * x) / (pool.a + x)
+            } else {
+                (pool.a * x) / (pool.b + x)
+            }
+        }
+
+        _ => panic!("unsupported dex")
+    }
+    
 }
 
-pub fn get_profit_at_x(a1: Int256, b1: Int256, a2: Int256, b2: Int256, x: Int256) -> Int256 {
-    // (a2 - m) (b2 + y) = a2*b2
-    // a2 - a2*b2/(b2+y)
-    // (a2 - (a2 * b2) / (b2 + b1 - a1 * b1 / (a1 + x)) - x) as i128
-    a2 - a2 * b2 / (b2 + b1 - a1 * b1 / (a1 + x)) - x
+pub fn get_arbitrage_swap_outputs(src_pool: &Pool, dst_pool: &Pool, x: Int256) -> (Int256, Int256) {
+    // swap a for b in src_pool
+    let first_swap_output = get_output_amount(src_pool, x, true);
+    // swap b for a in dst_pool
+    let second_swap_output = get_output_amount(dst_pool, first_swap_output, false);
+    (first_swap_output, second_swap_output)
 }
 
 pub fn to_uint256(i: Int256) -> Uint256 {
@@ -108,18 +134,17 @@ pub fn to_int256(i: Uint256) -> Int256 {
 }
 
 pub fn to_u128(i: Int256) -> u128 {
-    u128::from_be_bytes(i.to_be_bytes()[16..32].try_into().unwrap())
+    u128::from_be_bytes(i.to_be_bytes()[16..32].try_into().expect("must be u128"))
 }
 
 // contract: use x a1 to get b1
 // use a1 as a2 to get b2 => profit = output (b1) - input (b1)
-pub fn get_max_profit_point(a1: Int256, b1: Int256, a2: Int256, b2: Int256) -> (Int256, Int256) {
-    // TODO: prevent overflow
+pub fn get_max_profit_point(a1: Int256, b1: Int256, a2: Int256, b2: Int256) -> Int256 {
     let optimal_x =
         (to_int256(Isqrt::isqrt(to_uint256(a1 * b1)) * Isqrt::isqrt(to_uint256(a2 * b2)))
             - a1 * b2)
             / (b1 + b2);
-    (optimal_x, get_profit_at_x(a1, b1, a2, b2, optimal_x))
+    optimal_x
 }
 
 pub fn swap(sender: String, swap: &Swap) -> Result<FISInstruction, StdError> {
@@ -133,8 +158,8 @@ pub fn swap(sender: String, swap: &Swap) -> Result<FISInstruction, StdError> {
 
 pub fn astro_transfer(
     sender: String,
-    src_plane: String,
-    dst_plane: String,
+    src_plane: &String,
+    dst_plane: &String,
     mut denom: String,
     amount: u128,
 ) -> FISInstruction {
@@ -149,8 +174,8 @@ pub fn astro_transfer(
         msg: to_json_vec(&MsgAstroTransfer::new(
             sender.clone(),
             sender,
-            src_plane,
-            dst_plane,
+            src_plane.clone(),
+            dst_plane.clone(),
             Coin {
                 denom,
                 amount: Uint128::from(amount),
@@ -180,10 +205,11 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
             }
 
             Ok(Pool {
-                dex: RAYDIUM.to_string(),
+                dex_name: RAYDIUM.to_string(),
                 denom_plane: "SVM".to_string(),
                 a: Int256::from_i128(a as i128),
                 b: Int256::from_i128(b as i128),
+                fee_rate: Int256::from(1000i128),
             })
         }
         ASTROPORT => {
@@ -209,10 +235,11 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
             }
 
             Ok(Pool {
-                dex: ASTROPORT.to_string(),
+                dex_name: ASTROPORT.to_string(),
                 denom_plane: "COSMOS".to_string(),
                 a: Int256::from(a.u128()),
                 b: Int256::from(b.u128()),
+                fee_rate: Int256::from(10000i128),
             })
         }
         _ => Err(StdError::generic_err("unsupported dex")),
@@ -256,18 +283,20 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // 2nd swap: pool 2: btc => usdt
     // but we need to make (a, b) coefficient aligned (means pool1 a's denom = pool2 a's denom)
     let dst_pool = parse_pool(&dst_swap, dst_pool_raw, true)?;
-    // calculate profit for target pool
-    let (optimal_x, optimal_y) =
-        get_max_profit_point(src_pool.a, src_pool.b, dst_pool.a, dst_pool.b);
 
+    _deps.api.debug("parsed pools");
+    // calculate profit for target pool
+    let optimal_x= get_max_profit_point(src_pool.a, src_pool.b, dst_pool.a, dst_pool.b);
+    let (first_optimal_swap_output, second_optimal_swap_output) = get_arbitrage_swap_outputs(&src_pool, &dst_pool, optimal_x);
+    let profit = second_optimal_swap_output - optimal_x;
     _deps.api.debug(
         format!(
             "pool s {:#?}, pool d: {:#?}, optimal x: {}, optimal y: {}",
-            src_pool, dst_pool, optimal_x, optimal_y
+            src_pool, dst_pool, optimal_x, profit
         )
         .as_str(),
     );
-    if optimal_x <= Int256::zero() || optimal_y <= Int256::zero() {
+    if optimal_x <= Int256::zero() || profit <= Int256::zero() {
         // do nothing if there is no profit or can't reach that amount
         return Ok(to_json_binary(&StrategyOutput {
             instructions: vec![],
@@ -281,21 +310,9 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         optimal_x,
         Int256::from(src_swap.input_amount.unwrap().i128()),
     );
-
-    let expected_output = if execute_amount == optimal_x {
-        optimal_y
-    } else {
-        get_profit_at_x(
-            src_pool.a,
-            src_pool.b,
-            dst_pool.a,
-            dst_pool.b,
-            execute_amount,
-        )
-    };
+    let (first_swap_output, second_swap_output) = get_arbitrage_swap_outputs(&src_pool, &dst_pool, execute_amount);
 
     let sender = env.contract.address.to_string();
-    let first_swap_output = get_output_amount(src_pool.a, src_pool.b, execute_amount);
     dst_swap.input_amount = Some(Int128::from_be_bytes(
         first_swap_output.to_be_bytes()[16..32].try_into().unwrap(),
     ));
@@ -303,18 +320,18 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         swap(sender.clone(), &src_swap)?,
         astro_transfer(
             sender.clone(),
-            src_pool.clone().denom_plane,
-            dst_pool.clone().denom_plane,
-            src_swap.clone().output_denom,
+            &src_pool.denom_plane,
+            &dst_pool.denom_plane,
+            src_swap.output_denom,
             to_u128(first_swap_output),
         ),
         swap(sender.clone(), &dst_swap)?,
         astro_transfer(
             sender.clone(),
-            dst_pool.denom_plane,
-            src_pool.denom_plane,
+            &dst_pool.denom_plane,
+            &src_pool.denom_plane,
             dst_swap.clone().output_denom,
-            to_u128(expected_output),
+            to_u128(second_swap_output),
         ),
     ];
 
