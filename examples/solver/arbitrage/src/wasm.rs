@@ -3,12 +3,9 @@ use serde::{Deserialize, Serialize};
 
 pub mod astroport {
     use std::str::FromStr;
-
     use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::{to_json_binary, to_json_vec, Addr, Coin, Decimal, StdError, Uint128};
-
+    use cosmwasm_std::{to_json_vec, Addr, Coin, Decimal, StdError, Uint128};
     use crate::{astromesh::Swap, FISInstruction};
-
     use super::MsgExecuteContract;
 
     // TODO: Get these from astroport library

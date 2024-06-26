@@ -70,3 +70,10 @@ pub struct FISInstruction {
     address: String,
     msg: Vec<u8>,
 }
+
+#[cw_serde]
+pub enum NexusAction {
+    Arbitrage {
+        amount: Int256,
+    }
+}
