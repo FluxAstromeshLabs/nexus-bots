@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin, WasmMsg};
+use cosmwasm_std::{Binary, Coin};
 use serde::{Deserialize, Serialize};
 
 pub mod astroport {
@@ -53,7 +53,7 @@ pub mod astroport {
         let msg = MsgExecuteContract::new(
             sender.clone(),
             cloned_swap.pool_id,
-            to_json_binary(&AstroportMsg::Swap {
+            AstroportMsg::Swap {
                 offer_asset: Asset {
                     info: AssetInfo::NativeToken {
                         denom: cloned_swap.input_denom,
@@ -64,7 +64,7 @@ pub mod astroport {
                 belief_price: None,
                 max_spread: Some(Decimal::from_str("0.5").unwrap()),
                 to: Some(sender),
-            })?,
+            },
             vec![Coin {
                 amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
                 denom: swap.input_denom,
@@ -81,21 +81,20 @@ pub mod astroport {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MsgExecuteContract {
+pub struct MsgExecuteContract<T> where T: Serialize {
     /// Sender is the actor that signed the messages
     pub sender: String,
     /// Contract is the address of the smart contract
     pub contract: String,
     /// Msg is a JSON encoded message to be passed to the contract
-    pub msg: Binary,
-    /// SentFunds are coins that are transferred to the contract on execution
+    pub msg: T,
+    /// Funds are coins that are transferred to the contract on execution
     pub funds: Vec<Coin>,
 }
 
-impl MsgExecuteContract {
-    pub fn new(sender: String, contract: String, msg: Binary, funds: Vec<Coin>) -> Self {
+impl<T> MsgExecuteContract<T> where T: Serialize  {
+    pub fn new(sender: String, contract: String, msg: T, funds: Vec<Coin>) -> Self {
         MsgExecuteContract {
-            // ty: "cosmwasm.wasm.v1beta1.MsgExecuteContract".to_string(),
             sender,
             contract,
             msg,
