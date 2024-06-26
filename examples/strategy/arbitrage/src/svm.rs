@@ -280,5 +280,3 @@ impl TokenAccount {
         })
     }
 }
-
-// spl-token library => static check fail

@@ -117,7 +117,9 @@ pub fn get_output_amount(pool: &Pool, x: Int256, a_for_b: bool) -> Int256 {
     
 }
 
-pub fn get_arbitrage_swap_outputs(src_pool: &Pool, dst_pool: &Pool, x: Int256) -> (Int256, Int256) {
+// swap x from a to b in src_pool, use same b amount to swap b to a in dst_pool
+// this function returns output amount of each swap with input x
+pub fn calculate_pools_output(src_pool: &Pool, dst_pool: &Pool, x: Int256) -> (Int256, Int256) {
     // swap a for b in src_pool
     let first_swap_output = get_output_amount(src_pool, x, true);
     // swap b for a in dst_pool
@@ -285,17 +287,19 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let dst_pool = parse_pool(&dst_swap, dst_pool_raw, true)?;
 
     _deps.api.debug("parsed pools");
-    // calculate profit for target pool
+    // calculate profit for target pool with ideal scenario (no pool fees)
     let optimal_x= get_max_profit_point(src_pool.a, src_pool.b, dst_pool.a, dst_pool.b);
-    let (first_optimal_swap_output, second_optimal_swap_output) = get_arbitrage_swap_outputs(&src_pool, &dst_pool, optimal_x);
+    let optimal_x = adjust_optimal_x(optimal_x, src_pool.clone(), dst_pool.clone());
+    let (_, second_optimal_swap_output) = calculate_pools_output(&src_pool, &dst_pool, optimal_x);
     let profit = second_optimal_swap_output - optimal_x;
     _deps.api.debug(
         format!(
-            "pool s {:#?}, pool d: {:#?}, optimal x: {}, optimal y: {}",
+            "pool s {:#?}, pool d: {:#?}, optimal x: {}, optimal profit: {}",
             src_pool, dst_pool, optimal_x, profit
         )
         .as_str(),
     );
+
     if optimal_x <= Int256::zero() || profit <= Int256::zero() {
         // do nothing if there is no profit or can't reach that amount
         return Ok(to_json_binary(&StrategyOutput {
@@ -303,19 +307,22 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         })
         .unwrap());
     }
-
-    let optimal_x = adjust_optimal_x(optimal_x, src_pool.clone(), dst_pool.clone());
-
+    
     let execute_amount = min(
         optimal_x,
         Int256::from(src_swap.input_amount.unwrap().i128()),
     );
-    let (first_swap_output, second_swap_output) = get_arbitrage_swap_outputs(&src_pool, &dst_pool, execute_amount);
-
+    let (first_swap_output, second_swap_output) = calculate_pools_output(&src_pool, &dst_pool, execute_amount);
     let sender = env.contract.address.to_string();
     dst_swap.input_amount = Some(Int128::from_be_bytes(
         first_swap_output.to_be_bytes()[16..32].try_into().unwrap(),
     ));
+
+    // actions, take usdt > btc arbitrage as example
+    // 1. do swap usdt to btc src pool 
+    // 2. transfer the swapped btc amount to dst pool
+    // 3. swap the btc amount to usdt in dst pool
+    // 4. transfer usdt back to src pool
     let instructions = vec![
         swap(sender.clone(), &src_swap)?,
         astro_transfer(

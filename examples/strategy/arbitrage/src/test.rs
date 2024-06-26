@@ -2,7 +2,7 @@
 mod tests {
     use cosmwasm_std::{Binary, Int256};
 
-    use crate::{evm, get_arbitrage_swap_outputs, svm::TokenAccount, ASTROPORT, RAYDIUM};
+    use crate::{evm, calculate_pools_output, svm::TokenAccount, ASTROPORT, RAYDIUM};
     #[test]
     fn test_parse_pool_info() {
         let data = hex::decode("000000000bb800000001b326000000000000010655c244ab2aaa152ba8352d52")
@@ -36,7 +36,7 @@ mod tests {
     #[test]
     fn test_arbitrage_profit() {
         let input_amount = Int256::from(4990212513i128);
-        let (first_swap, second_swap) = get_arbitrage_swap_outputs(
+        let (first_swap, second_swap) = calculate_pools_output(
             &crate::Pool { 
                 dex_name: ASTROPORT.to_string(), 
                 denom_plane: "COSMOS".to_string(), 

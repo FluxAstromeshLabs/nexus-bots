@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin};
+use cosmwasm_std::{Binary, Coin, WasmMsg};
 use serde::{Deserialize, Serialize};
 
 pub mod astroport {
@@ -82,8 +82,6 @@ pub mod astroport {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgExecuteContract {
-    // #[serde(rename = "@type")]
-    // pub ty: String,
     /// Sender is the actor that signed the messages
     pub sender: String,
     /// Contract is the address of the smart contract
