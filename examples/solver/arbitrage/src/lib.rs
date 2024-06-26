@@ -6,12 +6,13 @@ pub mod wasm;
 use astromesh::{MsgAstroTransfer, Swap};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, to_json_binary, to_json_vec, Binary, Coin, Decimal256, Deps, DepsMut, Env, Int128,
+    entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128,
     Int256, MessageInfo, Response, StdResult, Uint128, Uint256,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
-use std::borrow::Borrow;
+use evm::uniswap;
 use std::cmp::min;
+use std::collections::btree_set::Union;
 use std::vec::Vec;
 use svm::{raydium, Account, TokenAccount};
 use wasm::astroport::{self, AssetInfo};
@@ -105,6 +106,14 @@ pub fn get_output_amount(pool: &Pool, x: Int256, a_for_b: bool) -> Int256 {
         RAYDIUM => {
             let x = x * (bps - pool.fee_rate) / bps;
 
+            if a_for_b {
+                (pool.b * x) / (pool.a + x)
+            } else {
+                (pool.a * x) / (pool.b + x)
+            }
+        }
+
+        UNISWAP => {
             if a_for_b {
                 (pool.b * x) / (pool.a + x)
             } else {
@@ -242,6 +251,27 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
                 a: Int256::from(a.u128()),
                 b: Int256::from(b.u128()),
                 fee_rate: Int256::from(10000i128),
+            })
+        }
+        UNISWAP => {
+            let pool_info = uniswap::parse_pool_info(input.data.get(0).unwrap().as_slice())?;
+            let liquidity = Uint256::from_be_bytes(input.data.get(1).unwrap().as_slice().try_into().unwrap());
+
+            let uniswap_params = swap.uniswap_input.clone().unwrap();
+            let (mut a, mut b) = pool_info.calculate_liquidity_amounts(liquidity, uniswap_params.lower_tick, uniswap_params.upper_tick);
+            if !uniswap_params.zero_for_one {
+                (a, b) = (b, a)
+            }
+
+            if reverse {
+                (a, b) = (b, a)
+            }
+            Ok(Pool {
+                dex_name: UNISWAP.to_string(),
+                denom_plane: "EVM".to_string(),
+                a,
+                b,
+                fee_rate: Int256::from(3000i128),
             })
         }
         _ => Err(StdError::generic_err("unsupported dex")),

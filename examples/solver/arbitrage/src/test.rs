@@ -2,7 +2,7 @@
 mod tests {
     use cosmwasm_std::{Binary, Int256};
 
-    use crate::{evm, calculate_pools_output, svm::TokenAccount, ASTROPORT, RAYDIUM};
+    use crate::{calculate_pools_output, evm::{self, get_price_at_tick}, svm::TokenAccount, ASTROPORT, RAYDIUM};
     #[test]
     fn test_parse_pool_info() {
         let data = hex::decode("000000000bb800000001b326000000000000010655c244ab2aaa152ba8352d52")
@@ -54,5 +54,12 @@ mod tests {
             input_amount,
         );
         assert!((second_swap - input_amount).gt(&Int256::zero()) == true);
+    }
+
+    #[test]
+    fn test_price_at_tick_x96() {
+        let n = 111398i32;
+        let tick_price_x96 = get_price_at_tick(n);
+        println!("my sqrt tick price x96: {}", tick_price_x96);
     }
 }

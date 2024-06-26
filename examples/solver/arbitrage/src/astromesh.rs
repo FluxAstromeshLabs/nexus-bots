@@ -46,6 +46,14 @@ pub struct RaydiumAccounts {
 }
 
 #[cw_serde]
+pub struct UniswapInput {
+    pub lower_tick: i32,
+    pub upper_tick: i32,
+    pub zero_for_one: bool,
+    pub sqrt_price_limit: Int256,
+}
+
+#[cw_serde]
 pub struct Swap {
     pub dex_name: String,
     pub pool_id: String,
@@ -59,8 +67,7 @@ pub struct Swap {
     // only available on raydium/svm
     pub raydium_accounts: Option<RaydiumAccounts>,
     // only availble on uniswap
-    pub zero_for_one: Option<bool>,
-    pub sqrt_price_limit: Option<Int256>,
+    pub uniswap_input: Option<UniswapInput>,
 }
 
 #[cw_serde]
@@ -71,9 +78,13 @@ pub struct FISInstruction {
     msg: Vec<u8>,
 }
 
+/*
 #[cw_serde]
 pub enum NexusAction {
     Arbitrage {
-        amount: Int256,
-    }
+        pair: String, // 3 pools needed and only need usdt amount, usdt => X => usdt
+        usdt_amount: Int256,
+        min_profit: Option<Int256>,
+    },
 }
+*/

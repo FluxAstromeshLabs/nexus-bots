@@ -1,11 +1,17 @@
-use cosmwasm_std::Binary;
+use cosmwasm_std::{Binary, Decimal256, Int256, StdError, Uint256};
+use fixed::{types::extra, FixedU128};
+
 use serde::{Deserialize, Serialize};
 
+const MAX_TICK: u32 = 887272u32;
+
 pub mod uniswap {
-    use cosmwasm_std::{Binary, Int256, StdError, Uint256};
+    use cosmwasm_std::{Binary, Decimal256, Int256, StdError, Uint256};
     use serde::{Deserialize, Serialize};
 
     use crate::astromesh::{FISInstruction, Swap};
+
+    use super::{get_price_at_tick, left_pad};
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct PoolKey {
@@ -117,18 +123,23 @@ pub mod uniswap {
         pub lp_fee: u32,
     }
 
-    fn left_pad(input: &[u8], expected_len: usize) -> Result<Vec<u8>, StdError> {
-        if input.len() > expected_len {
-            return Err(StdError::generic_err(
-                "input len must not exceeds expected len",
-            ));
+    impl PoolInfo {
+        // returns currentcy0, currency1 amount
+        pub fn calculate_liquidity_amounts(&self, liquidity: Uint256, lower_tick: i32, upper_tick: i32) -> (Int256, Int256) {
+            let lower_price = get_price_at_tick(lower_tick);
+            let upper_price = get_price_at_tick(upper_tick);
+            let cur_price = self.sqrt_price_x96;
+
+            // token0 = L * (1/sqrt(curPrice) - 1/sqrt(upperPrice))
+            // token1 =  L * (sqrt(curPrice) - sqrt(lowerPrice))
+            let denom_0_amount = ((liquidity * (upper_price - cur_price)) << 96) / (cur_price * upper_price);
+            let denom_1_amount = (liquidity * (cur_price - lower_price)) >> 96;
+            
+            (
+                Int256::from_be_bytes(denom_0_amount.to_be_bytes()),
+                Int256::from_be_bytes(denom_1_amount.to_be_bytes()),
+            )
         }
-
-        let mut padded = vec![0u8; expected_len];
-        let start_index = expected_len - input.len();
-        padded[start_index..].copy_from_slice(&input);
-
-        Ok(padded)
     }
 
     fn signed_big_int_from_bytes(b: &[u8]) -> Result<Int256, StdError> {
@@ -171,6 +182,119 @@ pub mod uniswap {
         Err(StdError::generic_err("unimplemented"))
     }
 }
+
+fn left_pad(input: &[u8], expected_len: usize) -> Result<Vec<u8>, StdError> {
+    if input.len() > expected_len {
+        return Err(StdError::generic_err(
+            "input len must not exceeds expected len",
+        ));
+    }
+
+    let mut padded = vec![0u8; expected_len];
+    let start_index = expected_len - input.len();
+    padded[start_index..].copy_from_slice(&input);
+
+    Ok(padded)
+}
+
+// pub fn my_get_sqrt_price_at_tick(tick: i32) -> Int256 {
+//     let base = fixed::FixedU128::<extra::U96>::from_num(1.0001);
+//     // for odd P, 1.0001^(P/2) = 1.0001^((2k+1)/2) = 1.0001^k * 1.0001^(1/2)
+//     let mut res = base.clone();
+//     for _ in 0..tick {
+//         res = res * base;
+//     }
+
+//     if tick % 2 != 0 {
+//         res = res * base.sqrt()
+//     };
+
+//     println!("res: {}", res.to_string());
+
+//     Int256::from_be_bytes(left_pad(res.to_be_bytes().as_slice(), 32).unwrap().try_into().unwrap())
+// }
+
+pub fn get_price_at_tick(tick: i32) -> Uint256 {
+    let abs_tick: u32 = if tick < 0 { (-tick) as u32 } else { tick as u32 };
+
+    if abs_tick > MAX_TICK {
+        panic!("InvalidTick");
+    }
+
+    let mut price: Uint256 = if abs_tick & 1 != 0 {
+        Uint256::from(0xfffcb933bd6fad37aa2d162d1a594001u128)
+    } else {
+        Uint256::from_be_bytes(left_pad(hex::decode("0100000000000000000000000000000000").unwrap().as_slice(), 32).unwrap().try_into().unwrap())
+    };
+
+    if abs_tick & 2 != 0 {
+        price = (price * Uint256::from(0xfff97272373d413259a46990580e213a as u128)) >> 128;
+    }
+    if abs_tick & 4 != 0 {
+        price = (price * Uint256::from(0xfff2e50f5f656932ef12357cf3c7fdcc as u128)) >> 128;
+    }
+    if abs_tick & 8 != 0 {
+        price = (price * Uint256::from(0xffe5caca7e10e4e61c3624eaa0941cd0 as u128)) >> 128;
+    }
+    if abs_tick & 16 != 0 {
+        price = (price * Uint256::from(0xffcb9843d60f6159c9db58835c926644 as u128)) >> 128;
+    }
+    if abs_tick & 32 != 0 {
+        price = (price * Uint256::from(0xff973b41fa98c081472e6896dfb254c0 as u128)) >> 128;
+    }
+    if abs_tick & 64 != 0 {
+        price = (price * Uint256::from(0xff2ea16466c96a3843ec78b326b52861 as u128)) >> 128;
+    }
+    if abs_tick & 128 != 0 {
+        price = (price * Uint256::from(0xfe5dee046a99a2a811c461f1969c3053 as u128)) >> 128;
+    }
+    if abs_tick & 256 != 0 {
+        price = (price * Uint256::from(0xfcbe86c7900a88aedcffc83b479aa3a4 as u128)) >> 128;
+    }
+    if abs_tick & 512 != 0 {
+        price = (price * Uint256::from(0xf987a7253ac413176f2b074cf7815e54 as u128)) >> 128;
+    }
+    if abs_tick & 1024 != 0 {
+        price = (price * Uint256::from(0xf3392b0822b70005940c7a398e4b70f3 as u128)) >> 128;
+    }
+    if abs_tick & 2048 != 0 {
+        price = (price * Uint256::from(0xe7159475a2c29b7443b29c7fa6e889d9 as u128)) >> 128;
+    }
+    if abs_tick & 4096 != 0 {
+        price = (price * Uint256::from(0xd097f3bdfd2022b8845ad8f792aa5825 as u128)) >> 128;
+    }
+    if abs_tick & 8192 != 0 {
+        price = (price * Uint256::from(0xa9f746462d870fdf8a65dc1f90e061e5 as u128)) >> 128;
+    }
+    if abs_tick & 16384 != 0 {
+        price = (price * Uint256::from(0x70d869a156d2a1b890bb3df62baf32f7 as u128)) >> 128;
+    }
+    if abs_tick & 32768 != 0 {
+        price = (price * Uint256::from(0x31be135f97d08fd981231505542fcfa6 as u128)) >> 128;
+    }
+    if abs_tick & 65536 != 0 {
+        price = (price * Uint256::from(0x9aa508b5b7a84e1c677de54f3e99bc9 as u128)) >> 128;
+    }
+    if abs_tick & 131072 != 0 {
+        price = (price * Uint256::from(0x5d6af8dedb81196699c329225ee604 as u128)) >> 128;
+    }
+    if abs_tick & 262144 != 0 {
+        price = (price * Uint256::from(0x2216e584f5fa1ea926041bedfe98 as u128)) >> 128;
+    }
+    if abs_tick & 524288 != 0 {
+        price = (price * Uint256::from(0x48a170391f7dc42444e8fa2 as u128)) >> 128;
+    }
+
+    if tick > 0 {
+        price = Uint256::MAX / price;
+    }
+
+    // Convert to Q128.96 by shifting right by 32 bits and rounding up
+    let price_with_rounding = price + Uint256::from((1u128 << 32) - 1);
+    let sqrt_price_x96 = price_with_rounding >> 32;
+    sqrt_price_x96
+}
+
 
 // more dapp types goes here
 #[derive(Serialize, Deserialize, Debug, Clone)]
