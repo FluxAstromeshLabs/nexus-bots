@@ -3,10 +3,15 @@ use serde::{Deserialize, Serialize};
 
 pub mod astroport {
     use super::MsgExecuteContract;
-    use crate::{astromesh::Swap, FISInstruction};
+    use crate::{
+        astromesh::{FISInput, Pool, Swap},
+        FISInstruction,
+    };
     use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::{to_json_vec, Addr, Coin, Decimal, StdError, Uint128};
+    use cosmwasm_std::{from_json, to_json_vec, Addr, Coin, Decimal, Int256, StdError, Uint128};
     use std::str::FromStr;
+
+    const ASTROPORT: &str = "astroport";
 
     // TODO: Get these from astroport library
     #[cw_serde]
@@ -45,17 +50,57 @@ pub mod astroport {
         },
     }
 
-    pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
+    pub struct PoolMeta {
+        contract: String,
+        token0_denom: String,
+        token1_denom: String,
+    }
+
+    pub fn get_pool_meta_by_name(pool_name: &String) -> Result<PoolMeta, StdError> {
+        match pool_name.as_str() {
+            "btc-usdt" => Ok(PoolMeta {
+                contract: "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts"
+                    .to_string(),
+                token0_denom: "btc".to_string(),
+                token1_denom: "usdt".to_string(),
+            }),
+            _ => Err(StdError::not_found(pool_name)),
+        }
+    }
+
+    pub fn parse_pool(input: &FISInput) -> Result<Pool, StdError> {
+        let pool_info = from_json::<PoolResponse>(input.data.get(0).unwrap())?;
+        let asset_0 = pool_info.assets.get(0).unwrap();
+        let asset_1 = pool_info.assets.get(1).unwrap();
+        let asset_0_denom = match asset_0.clone().info {
+            AssetInfo::Token { contract_addr } => contract_addr.to_string(),
+            AssetInfo::NativeToken { denom } => denom,
+        };
+        let (mut a, mut b) = (asset_0.amount, asset_1.amount);
+        if asset_0_denom != "usdt" {
+            (a, b) = (b, a);
+        }
+
+        Ok(Pool {
+            dex_name: ASTROPORT.to_string(),
+            denom_plane: "COSMOS".to_string(),
+            a: Int256::from(a.u128()),
+            b: Int256::from(b.u128()),
+            fee_rate: Int256::from(10000i128),
+        })
+    }
+
+    pub fn compose_swap_fis(sender: String, swap: &Swap) -> Result<FISInstruction, StdError> {
         let cloned_swap = swap.to_owned();
+        let pool = get_pool_meta_by_name(&swap.pool_name)?;
+
         let msg = MsgExecuteContract::new(
             sender.clone(),
-            cloned_swap.pool_id,
+            pool.contract,
             AstroportMsg::Swap {
                 offer_asset: Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: cloned_swap.input_denom,
-                    },
-                    amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
+                    info: AssetInfo::NativeToken { denom: swap.denom },
+                    amount: Uint128::new(swap.amount.i128() as u128),
                 },
                 ask_asset_info: None,
                 belief_price: None,
@@ -63,8 +108,8 @@ pub mod astroport {
                 to: Some(sender),
             },
             vec![Coin {
-                amount: Uint128::new(swap.input_amount.unwrap().i128() as u128),
-                denom: swap.input_denom,
+                amount: Uint128::new(swap.amount.i128() as u128),
+                denom: swap.denom,
             }],
         );
 

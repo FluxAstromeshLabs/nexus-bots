@@ -3,7 +3,7 @@ pub mod evm;
 pub mod svm;
 pub mod test;
 pub mod wasm;
-use astromesh::{MsgAstroTransfer, Swap};
+use astromesh::{FISInput, MsgAstroTransfer, NexusAction, Pool, Swap};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, Int256,
@@ -12,13 +12,9 @@ use cosmwasm_std::{
 use cosmwasm_std::{from_json, Isqrt, StdError};
 use evm::uniswap;
 use std::cmp::min;
-use std::collections::btree_set::Union;
 use std::vec::Vec;
 use svm::{raydium, Account, TokenAccount};
 use wasm::astroport::{self, AssetInfo};
-
-const RAYDIUM: &str = "raydium";
-const ASTROPORT: &str = "astroport";
 const UNISWAP: &str = "uniswap"; // to be supported
 
 const BPS: i128 = 1000000i128;
@@ -52,29 +48,7 @@ pub fn execute(
 #[cw_serde]
 pub struct QueryMsg {
     msg: Binary,
-    fis_input: Vec<FisInput>,
-}
-
-#[cw_serde]
-pub struct FisInput {
-    data: Vec<Binary>,
-}
-
-#[cw_serde]
-pub struct ArbitrageMsg {
-    pub source_plane: String,
-    pub amount: Uint128,
-    pub denom: String,
-}
-
-#[cw_serde]
-#[derive(Default)]
-pub struct Pool {
-    pub dex_name: String,
-    pub denom_plane: String,
-    pub a: Int256,
-    pub b: Int256,
-    pub fee_rate: Int256,
+    fis_input: Vec<FISInput>,
 }
 
 #[cw_serde]
@@ -197,93 +171,6 @@ pub fn astro_transfer(
     }
 }
 
-// always make sure the denom aligns across swap
-// means pool1.a_denom == pool2.a_denom otherwise the calculation will go wrong
-pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, StdError> {
-    match swap.dex_name.as_str() {
-        RAYDIUM => {
-            let token_0_vault_account = Account::from_json_bytes(input.data.get(0).unwrap())?;
-            let token_1_vault_account = Account::from_json_bytes(input.data.get(1).unwrap())?;
-            let token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
-            let token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
-            // TODO: more constraint as validate basic
-            let (mut a, mut b) = (token_0_info.amount, token_1_info.amount);
-            if token_0_info.mint.to_string() != swap.input_denom {
-                (a, b) = (b, a);
-            }
-
-            if reverse {
-                (a, b) = (b, a);
-            }
-
-            Ok(Pool {
-                dex_name: RAYDIUM.to_string(),
-                denom_plane: "SVM".to_string(),
-                a: Int256::from_i128(a as i128),
-                b: Int256::from_i128(b as i128),
-                fee_rate: Int256::from(1000i128),
-            })
-        }
-        ASTROPORT => {
-            let pool_info = from_json::<astroport::PoolResponse>(input.data.get(0).unwrap())?;
-            let asset_0 = pool_info.assets.get(0).unwrap();
-            let asset_1 = pool_info.assets.get(1).unwrap();
-            let asset_0_denom = match asset_0.clone().info {
-                AssetInfo::Token { contract_addr } => contract_addr.to_string(),
-                AssetInfo::NativeToken { denom } => denom,
-            };
-            // let asset_1_denom = match asset_1.clone().info {
-            //     AssetInfo::Token { contract_addr } => contract_addr.to_string(),
-            //     AssetInfo::NativeToken { denom } => denom,
-            // };
-
-            let (mut a, mut b) = (asset_0.amount, asset_1.amount);
-            if asset_0_denom != swap.input_denom {
-                (a, b) = (b, a);
-            }
-
-            if reverse {
-                (a, b) = (b, a);
-            }
-
-            Ok(Pool {
-                dex_name: ASTROPORT.to_string(),
-                denom_plane: "COSMOS".to_string(),
-                a: Int256::from(a.u128()),
-                b: Int256::from(b.u128()),
-                fee_rate: Int256::from(10000i128),
-            })
-        }
-        UNISWAP => {
-            let pool_info = uniswap::parse_pool_info(input.data.get(0).unwrap().as_slice())?;
-            let liquidity =
-                Uint256::from_be_bytes(input.data.get(1).unwrap().as_slice().try_into().unwrap());
-
-            let uniswap_params = swap.uniswap_input.clone().unwrap();
-            let (mut a, mut b) = pool_info.calculate_liquidity_amounts(
-                liquidity,
-                uniswap_params.lower_tick,
-                uniswap_params.upper_tick,
-            );
-            if !uniswap_params.zero_for_one {
-                (a, b) = (b, a)
-            }
-
-            if reverse {
-                (a, b) = (b, a)
-            }
-            Ok(Pool {
-                dex_name: UNISWAP.to_string(),
-                denom_plane: "EVM".to_string(),
-                a,
-                b,
-                fee_rate: Int256::from(3000i128),
-            })
-        }
-        _ => Err(StdError::generic_err("unsupported dex")),
-    }
-}
-
 // this estimates optimal_x with pool fee
 pub fn adjust_optimal_x(optimal_x: Int256, src_pool: Pool, dst_pool: Pool) -> Int256 {
     // ratio = a1/a_decimal/(b1 / b_decimal) / (a2/a_decimal/(b2/b_decimal)) - 1
@@ -305,30 +192,78 @@ pub fn adjust_optimal_x(optimal_x: Int256, src_pool: Pool, dst_pool: Pool) -> In
     }
 }
 
-// Let's do astroport + raydium for now
-#[entry_point]
-pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let swaps = from_json::<Vec<Swap>>(msg.msg)?;
+pub fn arbitrage(
+    deps: Deps,
+    env: Env,
+    pair: String,
+    amount: Int128,
+    min_profit: Option<Int256>,
+    fis_input: &Vec<FISInput>,
+) -> StdResult<Binary> {
     // TODO: asserts with meaningful messages
-    let src_pool_raw = msg.fis_input.get(0).unwrap();
-    let dst_pool_raw = msg.fis_input.get(1).unwrap();
-    let src_swap = swaps.get(0).unwrap().clone();
-    let mut dst_swap = swaps.get(1).unwrap().clone();
+    // wasm, svm
+    // pool queries
+    let raw_pools = [
+        fis_input
+            .get(0)
+            .ok_or(StdError::not_found("astroport pool data"))?,
+        fis_input
+            .get(1)
+            .ok_or(StdError::not_found("raydium pool data"))?,
+    ];
 
-    let src_pool = parse_pool(&src_swap, src_pool_raw, false)?;
-    // reverse = true because on the 2nd swap, we do reverse denom swap
-    // i.e 1st swap: pool 1 usdt => btc
-    // 2nd swap: pool 2: btc => usdt
-    // but we need to make (a, b) coefficient aligned (means pool1 a's denom = pool2 a's denom)
-    let dst_pool = parse_pool(&dst_swap, dst_pool_raw, true)?;
+    // parse pools
+    let parsed_pools = [
+        &astroport::parse_pool(raw_pools[0])?,
+        &raydium::parse_pool(raw_pools[1])?,
+    ];
 
-    _deps.api.debug("parsed pools");
+    let mut src_pool: &Pool;
+    let mut dst_pool: &Pool;
+
+    let (mut lowest_rate, mut highest_rate) = (Int256::MAX, Int256::MIN);
+    // detect best swap rate
+    // buy on low rate and sell on higher rate
+    for i in 0..parsed_pools.len() {
+        let rate = parsed_pools[i].a / parsed_pools[i].b;
+        if lowest_rate > rate {
+            src_pool = parsed_pools[i];
+        }
+
+        if highest_rate < rate {
+            dst_pool = parsed_pools[i];
+        }
+    }
+
+    // 2 pools are the same, no way but defense check
+    if src_pool.dex_name == dst_pool.dex_name {
+        return Err(StdError::generic_err("two detected swap pool are same, nothing executed"))
+    }
+
+    // compose the swap
+    let src_swap = Swap { 
+        dex_name: src_pool.dex_name, 
+        pool_name: pair, 
+        denom: "usdt".to_string(), 
+        amount: amount,
+    };
+
+    let mut dst_swap = Swap {
+        dex_name: dst_pool.dex_name,
+        pool_name: pair,
+        denom: "".to_string(),
+        amount: Int128::zero(), // to be updated later
+    };
+
+    // // TODO: detect source and dst swap
+    // let src_swap = swaps.get(0).unwrap().clone();
+    // let mut dst_swap = swaps.get(1).unwrap().clone();
     // calculate profit for target pool with ideal scenario (no pool fees)
     let optimal_x = get_max_profit_point(src_pool.a, src_pool.b, dst_pool.a, dst_pool.b);
     let optimal_x = adjust_optimal_x(optimal_x, src_pool.clone(), dst_pool.clone());
     let (_, second_optimal_swap_output) = calculate_pools_output(&src_pool, &dst_pool, optimal_x);
     let profit = second_optimal_swap_output - optimal_x;
-    _deps.api.debug(
+    deps.api.debug(
         format!(
             "pool s {:#?}, pool d: {:#?}, optimal x: {}, optimal profit: {}",
             src_pool, dst_pool, optimal_x, profit
@@ -346,14 +281,14 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     let execute_amount = min(
         optimal_x,
-        Int256::from(src_swap.input_amount.unwrap().i128()),
+        Int256::from(src_swap.amount.i128()),
     );
     let (first_swap_output, second_swap_output) =
         calculate_pools_output(&src_pool, &dst_pool, execute_amount);
     let sender = env.contract.address.to_string();
-    dst_swap.input_amount = Some(Int128::from_be_bytes(
+    dst_swap.amount = Int128::from_be_bytes(
         first_swap_output.to_be_bytes()[16..32].try_into().unwrap(),
-    ));
+    );
 
     // actions, take usdt > btc arbitrage as example
     // 1. do swap usdt to btc src pool
@@ -380,4 +315,18 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     ];
 
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
+}
+
+// Let's do astroport + raydium for now
+#[entry_point]
+pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let action = from_json::<Vec<NexusAction>>(msg.msg)?;
+    match action {
+        NexusAction::Arbitrage {
+            pair,
+            usdt_amount,
+            min_profit,
+        } => arbitrage(deps, env, pair, amount, min_profit),
+        // more actions goes here
+    }
 }

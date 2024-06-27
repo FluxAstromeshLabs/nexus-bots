@@ -3,13 +3,16 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub mod raydium {
-    use std::collections::BTreeMap;
+    use crate::{
+        astromesh::{FISInput, Pool, Swap},
+        FISInstruction,
+    };
+    use cosmwasm_std::{to_json_vec, Binary, Int256, StdError};
+    use tiny_keccak::{Hasher, Keccak};
 
-    use cosmwasm_std::{to_json_vec, Binary, StdError};
-    use crate::{astromesh::Swap, FISInstruction, Pool};
+    use super::{Account, Instruction, InstructionAccount, MsgTransaction, Pubkey, TokenAccount};
 
-    use super::{Instruction, InstructionAccount, MsgTransaction};
-
+    const RAYDIUM: &str = "raydium";
     const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
     const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
@@ -26,10 +29,9 @@ pub mod raydium {
         pub observer_state: String,
     }
 
-    pub fn get_pool_accounts_by_name(pool_name: String) -> Result<PoolAccounts, StdError> {
-        let pools = BTreeMap::<&str, PoolAccounts>::from([(
-            "btc-usdt",
-            PoolAccounts {
+    pub fn get_pool_accounts_by_name(pool_name: &String) -> Result<PoolAccounts, StdError> {
+        match pool_name.as_str() {
+            "btc-usdt" => Ok(PoolAccounts {
                 authority_account: "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL".to_string(),
                 amm_config_account: "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2".to_string(),
                 pool_state_account: "5qUshuBSTpuMu5c1C1Fxq8uJ7Emhn9AAtQwVJfEXAPmy".to_string(),
@@ -38,10 +40,17 @@ pub mod raydium {
                 token0_vault: "9U5Lpfmc6u1rCRAfzGe883KnK5Avm76zX4te6sexvCEk".to_string(),
                 token1_vault: "UURmKznoUTh8Dt9wgyusq6u1ETuY8Zj79NFAtfQJ7HB".to_string(),
                 observer_state: "FXqXrt2xDrxg7J5wdXrTbB2hCGajSzXLvwvc4x3Uw7i".to_string(),
-            },
-        )]);
+            }),
+            name => Err(StdError::not_found(name)),
+        }
+    }
 
-        Ok(pools.get(pool_name.as_str()).ok_or(StdError::not_found(pool_name))?.clone())
+    pub fn get_denom(denom: &String) -> String {
+        match denom.as_str() {
+            "btc" => "9kWnPUAkspGW6qGPPah1aAdH316nkiJhow5neRs5YDej".to_string(),
+            "usdt" => "HwkqUQaXocRwNLGX2qKmC3Sk4uTVxmzmCEAEHDwSj4KQ".to_string(),
+            _ => "unknown".to_string(),
+        }
     }
 
     pub fn swap_base_input(
@@ -185,29 +194,63 @@ pub mod raydium {
         }
     }
 
+    fn keccak256(input: &[u8]) -> Vec<u8> {
+        let mut hash = Keccak::v256();
+        hash.update(input);
+        let mut output = Vec::with_capacity(32);
+        hash.finalize(output.as_mut_slice());
+        output
+    }
+
     pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
-        // TODO: Return error instead of unwrapping
         // let accounts = swap.raydium_accounts.unwrap();
-        let accounts = get_pool_accounts_by_name(swap.pool_name)?;
-        
-        // let (_, sender_bz) = bech32::decode(sender.as_str()).unwrap();
-        // let sender_svm_account = Pubkey::from(keccak::hash(&sender_bz).0);
+        let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
+        let (_, sender_bz) = bech32::decode(sender.as_str()).unwrap();
+        let sender_svm_account: Pubkey =
+            Pubkey::from_slice(keccak256(&sender_bz.as_slice()).as_slice())?;
+        let input_denom = get_denom(swap.denom);
+        let (mut input_vault, mut output_vault) = (accounts.token0_vault, accounts.token1_vault);
+        if &input_denom == &accounts.token1_mint {
+            (input_vault, output_vault) = (output_vault, input_vault);
+        }
+
+        let output_denom = if input_denom == accounts.token0_mint {
+            accounts.token1_mint
+        } else {
+            accounts.token0_mint
+        };
+
+        let input_denom_pk = Pubkey::from_string(&input_denom)?;
+        let output_denom_pk = Pubkey::from_string(&output_denom)?;
+        let token_program = Pubkey::from_string(&SPL_TOKEN_2022.to_string())?;
+        let ata_program = Pubkey::from_string(&ASSOCIATED_TOKEN_PROGRAM_ID.to_string())?;
+
+        let (input_token_account, _) = Pubkey::find_program_address(
+            &[&sender_svm_account.0, &token_program.0, &input_denom_pk.0],
+            &ata_program,
+        )
+        .unwrap();
+        let (output_token_account, _) = Pubkey::find_program_address(
+            &[&sender_svm_account.0, &token_program.0, &output_denom_pk.0],
+            &ata_program,
+        )
+        .unwrap();
 
         let msg = swap_base_input(
             sender,
-            swap.input_amount.unwrap().i128() as u64,
+            swap.amount.i128() as u64,
             0,
-            "".to_string(),
+            sender_svm_account.to_string(),
             // sender_svm_account.to_string(),
             accounts.authority_account,
             accounts.amm_config_account,
             accounts.pool_state_account,
-            accounts.token0_vault,
-            accounts.token1_vault,
-            "".to_string(),
-            "".to_string(),
-            swap.input_denom,
-            swap.output_denom,
+            input_token_account.to_string(),
+            output_token_account.to_string(),
+            input_vault,
+            output_vault,
+            input_denom,
+            output_denom,
             accounts.observer_state,
         );
         Ok(FISInstruction {
@@ -215,6 +258,37 @@ pub mod raydium {
             action: "VM_INVOKE".to_string(),
             address: "".to_string(),
             msg: to_json_vec(&msg)?,
+        })
+    }
+
+    pub fn parse_pool(input: &FISInput) -> Result<Pool, StdError> {
+        let token_0_vault_account = Account::from_json_bytes(
+            input
+                .data
+                .get(0)
+                .ok_or(StdError::not_found("expected account 0"))?,
+        )?;
+        let token_1_vault_account = Account::from_json_bytes(
+            input
+                .data
+                .get(1)
+                .ok_or(StdError::not_found("expected account 1"))?,
+        )?;
+        let token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
+        let token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
+        // TODO: more constraint as validate basic
+        let (mut a, mut b) = (token_0_info.amount, token_1_info.amount);
+        // we always swap from usdt so let it be the first
+        if token_0_info.mint.to_string() != get_denom(&"usdt".to_string()) {
+            (a, b) = (b, a)
+        }
+
+        Ok(Pool {
+            dex_name: RAYDIUM.to_string(),
+            denom_plane: "SVM".to_string(),
+            a: Int256::from_i128(a as i128),
+            b: Int256::from_i128(b as i128),
+            fee_rate: Int256::from(1000i128),
         })
     }
 }
@@ -289,7 +363,6 @@ impl Hasher {
     }
 }
 
-#[allow(clippy::used_underscore_binding)]
 pub fn bytes_are_curve_point<T: AsRef<[u8]>>(_bytes: T) -> bool {
     curve25519_dalek::edwards::CompressedEdwardsY::from_slice(_bytes.as_ref())
         .unwrap()
@@ -299,6 +372,12 @@ pub fn bytes_are_curve_point<T: AsRef<[u8]>>(_bytes: T) -> bool {
 
 #[derive(Debug)]
 pub struct Pubkey(pub [u8; 32]);
+
+pub enum PubkeyError {
+    MaxSeedLengthExceeded,
+    InvalidSeeds,
+    IllegalOwner,
+}
 
 impl Pubkey {
     pub fn to_string(&self) -> String {
@@ -315,7 +394,7 @@ impl Pubkey {
         Ok(Self(pubkey))
     }
 
-    pub fn from_string(s: String) -> Result<Self, StdError> {
+    pub fn from_string(s: &String) -> Result<Self, StdError> {
         let bz = bs58::decode(s.as_str())
             .into_vec()
             .or_else(|e| Err(StdError::generic_err(e.to_string())))?;
@@ -330,7 +409,7 @@ impl Pubkey {
                 seeds_with_bump.push(&bump_seed);
                 match Self::create_program_address(&seeds_with_bump, program_id) {
                     Ok(address) => return Some((address, bump_seed[0])),
-                    Err(_) => (),
+                    Err(PubkeyError::InvalidSeeds) => (),
                     _ => break,
                 }
             }
@@ -342,14 +421,14 @@ impl Pubkey {
     pub fn create_program_address(
         seeds: &[&[u8]],
         program_id: &Pubkey,
-    ) -> Result<Pubkey, StdError> {
+    ) -> Result<Pubkey, PubkeyError> {
         if seeds.len() > 255 {
-            return Err(StdError::generic_err("seed exceeded"));
+            return Err(PubkeyError::MaxSeedLengthExceeded);
         }
 
         for seed in seeds.iter() {
-            if seed.len() > 255 {
-                return Err(StdError::generic_err("msg"));
+            if seed.len() > 32 {
+                return Err(PubkeyError::MaxSeedLengthExceeded);
             }
         }
 
@@ -361,10 +440,10 @@ impl Pubkey {
         let hash = hasher.result();
 
         if bytes_are_curve_point(hash.0) {
-            return Err(StdError::generic_err("invalid seed"));
+            return Err(PubkeyError::InvalidSeeds);
         }
 
-        Pubkey::from_slice(hash.0.as_slice())
+        Ok(Pubkey::from_slice(hash.0.as_slice()).unwrap())
     }
 }
 

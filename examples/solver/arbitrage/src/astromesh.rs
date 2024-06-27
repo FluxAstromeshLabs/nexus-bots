@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Coin, Int128, Int256};
+use cosmwasm_std::{Binary, Coin, Int128, Int256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -33,42 +33,26 @@ impl MsgAstroTransfer {
 }
 
 #[cw_serde]
-pub struct RaydiumAccounts {
-    pub sender_svm_account: String,
-    pub authority_account: String,
-    pub amm_config_account: String,
-    pub pool_state_account: String,
-    pub input_token_account: String,
-    pub output_token_account: String,
-    pub input_vault: String,
-    pub output_vault: String,
-    pub observer_state: String,
-}
-
-#[cw_serde]
-pub struct UniswapInput {
-    pub lower_tick: i32,
-    pub upper_tick: i32,
-    pub zero_for_one: bool,
-    pub sqrt_price_limit: Int256,
+pub struct FISInput {
+    pub data: Vec<Binary>,
 }
 
 #[cw_serde]
 pub struct Swap {
     pub dex_name: String,
     pub pool_name: String,
-    pub pool_id: String,
-    pub input_denom: String,
-    pub output_denom: String,
-    pub denom_plane: String,
-    pub input_amount: Option<Int128>,
+    pub denom: String,
+    pub amount: Int128,
+}
 
-    // only availble on astroport
-    pub max_spread: Option<f32>,
-    // only available on raydium/svm
-    pub raydium_accounts: Option<RaydiumAccounts>,
-    // only availble on uniswap
-    pub uniswap_input: Option<UniswapInput>,
+#[cw_serde]
+#[derive(Default)]
+pub struct Pool {
+    pub dex_name: String,
+    pub denom_plane: String,
+    pub a: Int256,
+    pub b: Int256,
+    pub fee_rate: Int256,
 }
 
 #[cw_serde]
@@ -79,7 +63,6 @@ pub struct FISInstruction {
     msg: Vec<u8>,
 }
 
-/*
 #[cw_serde]
 pub enum NexusAction {
     Arbitrage {
@@ -88,4 +71,3 @@ pub enum NexusAction {
         min_profit: Option<Int256>,
     },
 }
-*/

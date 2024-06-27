@@ -1,12 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Binary, Int256, Uint256};
     use crate::{
+        astromesh::Swap,
         calculate_pools_output,
         evm::{self, get_price_at_tick},
         svm::{Pubkey, TokenAccount},
         ASTROPORT, RAYDIUM,
     };
+    use cosmwasm_std::{Binary, Int256, Uint256};
     #[test]
     fn test_parse_pool_info() {
         let data = hex::decode("000000000bb800000001b326000000000000010655c244ab2aaa152ba8352d52")
@@ -62,20 +63,5 @@ mod tests {
             input_amount,
         );
         assert!((second_swap - input_amount).gt(&Int256::zero()) == true);
-    }
-
-    #[test]
-    fn test_price_at_tick_x96() {
-        let n = 111398i32;
-        let tick_price_x96 = get_price_at_tick(n);
-        println!("my sqrt tick price x96: {}", tick_price_x96);
-    }
-
-    #[test]
-    fn test_find_program_address() {
-        let upgradable = Pubkey::from_string("BPFLoaderUpgradeab1e11111111111111111111111".to_string()).unwrap();
-        let program_pk = Pubkey::from_string("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C".to_string()).unwrap();
-        let opt = Pubkey::find_program_address(&[program_pk.0.as_slice()], &upgradable).unwrap();
-        println!("pk: {}", opt.0.to_string())
     }
 }
