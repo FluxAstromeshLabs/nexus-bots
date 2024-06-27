@@ -1,12 +1,12 @@
-use cosmwasm_std::{Binary, Coin};
+use cosmwasm_std::Coin;
 use serde::{Deserialize, Serialize};
 
 pub mod astroport {
-    use std::str::FromStr;
+    use super::MsgExecuteContract;
+    use crate::{astromesh::Swap, FISInstruction};
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::{to_json_vec, Addr, Coin, Decimal, StdError, Uint128};
-    use crate::{astromesh::Swap, FISInstruction};
-    use super::MsgExecuteContract;
+    use std::str::FromStr;
 
     // TODO: Get these from astroport library
     #[cw_serde]
@@ -78,7 +78,10 @@ pub mod astroport {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MsgExecuteContract<T> where T: Serialize {
+pub struct MsgExecuteContract<T>
+where
+    T: Serialize,
+{
     /// Sender is the actor that signed the messages
     pub sender: String,
     /// Contract is the address of the smart contract
@@ -89,7 +92,10 @@ pub struct MsgExecuteContract<T> where T: Serialize {
     pub funds: Vec<Coin>,
 }
 
-impl<T> MsgExecuteContract<T> where T: Serialize  {
+impl<T> MsgExecuteContract<T>
+where
+    T: Serialize,
+{
     pub fn new(sender: String, contract: String, msg: T, funds: Vec<Coin>) -> Self {
         MsgExecuteContract {
             sender,

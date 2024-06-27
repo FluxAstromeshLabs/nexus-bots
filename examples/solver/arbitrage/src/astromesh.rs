@@ -56,6 +56,7 @@ pub struct UniswapInput {
 #[cw_serde]
 pub struct Swap {
     pub dex_name: String,
+    pub pool_name: String,
     pub pool_id: String,
     pub input_denom: String,
     pub output_denom: String,

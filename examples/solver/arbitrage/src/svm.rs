@@ -1,16 +1,48 @@
 use cosmwasm_std::{from_json, Binary, StdError, Uint64};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 pub mod raydium {
-    use cosmwasm_std::{to_json_vec, Binary, StdError};
+    use std::collections::BTreeMap;
 
-    use crate::{astromesh::Swap, FISInstruction};
+    use cosmwasm_std::{to_json_vec, Binary, StdError};
+    use crate::{astromesh::Swap, FISInstruction, Pool};
 
     use super::{Instruction, InstructionAccount, MsgTransaction};
 
     const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
-    // const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+    const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+
+    #[derive(Clone)]
+    pub struct PoolAccounts {
+        pub authority_account: String,
+        pub amm_config_account: String,
+        pub pool_state_account: String,
+        pub token0_mint: String,
+        pub token1_mint: String,
+        pub token0_vault: String,
+        pub token1_vault: String, // can be calculated
+        pub observer_state: String,
+    }
+
+    pub fn get_pool_accounts_by_name(pool_name: String) -> Result<PoolAccounts, StdError> {
+        let pools = BTreeMap::<&str, PoolAccounts>::from([(
+            "btc-usdt",
+            PoolAccounts {
+                authority_account: "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL".to_string(),
+                amm_config_account: "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2".to_string(),
+                pool_state_account: "5qUshuBSTpuMu5c1C1Fxq8uJ7Emhn9AAtQwVJfEXAPmy".to_string(),
+                token0_mint: "9kWnPUAkspGW6qGPPah1aAdH316nkiJhow5neRs5YDej".to_string(),
+                token1_mint: "HwkqUQaXocRwNLGX2qKmC3Sk4uTVxmzmCEAEHDwSj4KQ".to_string(),
+                token0_vault: "9U5Lpfmc6u1rCRAfzGe883KnK5Avm76zX4te6sexvCEk".to_string(),
+                token1_vault: "UURmKznoUTh8Dt9wgyusq6u1ETuY8Zj79NFAtfQJ7HB".to_string(),
+                observer_state: "FXqXrt2xDrxg7J5wdXrTbB2hCGajSzXLvwvc4x3Uw7i".to_string(),
+            },
+        )]);
+
+        Ok(pools.get(pool_name.as_str()).ok_or(StdError::not_found(pool_name))?.clone())
+    }
 
     pub fn swap_base_input(
         sender: String,
@@ -155,20 +187,25 @@ pub mod raydium {
 
     pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
         // TODO: Return error instead of unwrapping
-        let accounts = swap.raydium_accounts.unwrap();
+        // let accounts = swap.raydium_accounts.unwrap();
+        let accounts = get_pool_accounts_by_name(swap.pool_name)?;
+        
+        // let (_, sender_bz) = bech32::decode(sender.as_str()).unwrap();
+        // let sender_svm_account = Pubkey::from(keccak::hash(&sender_bz).0);
 
         let msg = swap_base_input(
             sender,
             swap.input_amount.unwrap().i128() as u64,
             0,
-            accounts.sender_svm_account,
+            "".to_string(),
+            // sender_svm_account.to_string(),
             accounts.authority_account,
             accounts.amm_config_account,
             accounts.pool_state_account,
-            accounts.input_token_account,
-            accounts.output_token_account,
-            accounts.input_vault,
-            accounts.output_vault,
+            accounts.token0_vault,
+            accounts.token1_vault,
+            "".to_string(),
+            "".to_string(),
             swap.input_denom,
             swap.output_denom,
             accounts.observer_state,
@@ -184,8 +221,6 @@ pub mod raydium {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgTransaction {
-    // #[serde(rename = "@type")]
-    // pub ty: String,
     /// Sender is the address of the actor that signed the message
     pub sender: String,
     /// Accounts are the cosmos addresses that sign this message
@@ -231,8 +266,39 @@ pub struct InstructionAccount {
     pub is_writable: bool,
 }
 
+const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
+
+pub struct Hash(pub(crate) [u8; 32]);
+
+#[derive(Clone, Default)]
+pub struct Hasher {
+    hasher: Sha256,
+}
+
+impl Hasher {
+    pub fn hash(&mut self, val: &[u8]) {
+        self.hasher.update(val);
+    }
+    pub fn hashv(&mut self, vals: &[&[u8]]) {
+        for val in vals {
+            self.hash(val);
+        }
+    }
+    pub fn result(self) -> Hash {
+        Hash(self.hasher.finalize().into())
+    }
+}
+
+#[allow(clippy::used_underscore_binding)]
+pub fn bytes_are_curve_point<T: AsRef<[u8]>>(_bytes: T) -> bool {
+    curve25519_dalek::edwards::CompressedEdwardsY::from_slice(_bytes.as_ref())
+        .unwrap()
+        .decompress()
+        .is_some()
+}
+
 #[derive(Debug)]
-pub struct Pubkey([u8; 32]);
+pub struct Pubkey(pub [u8; 32]);
 
 impl Pubkey {
     pub fn to_string(&self) -> String {
@@ -254,6 +320,51 @@ impl Pubkey {
             .into_vec()
             .or_else(|e| Err(StdError::generic_err(e.to_string())))?;
         Pubkey::from_slice(bz.as_slice())
+    }
+
+    pub fn find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)> {
+        let mut bump_seed = [u8::MAX];
+        for _ in 0..u8::MAX {
+            {
+                let mut seeds_with_bump = seeds.to_vec();
+                seeds_with_bump.push(&bump_seed);
+                match Self::create_program_address(&seeds_with_bump, program_id) {
+                    Ok(address) => return Some((address, bump_seed[0])),
+                    Err(_) => (),
+                    _ => break,
+                }
+            }
+            bump_seed[0] -= 1;
+        }
+        None
+    }
+
+    pub fn create_program_address(
+        seeds: &[&[u8]],
+        program_id: &Pubkey,
+    ) -> Result<Pubkey, StdError> {
+        if seeds.len() > 255 {
+            return Err(StdError::generic_err("seed exceeded"));
+        }
+
+        for seed in seeds.iter() {
+            if seed.len() > 255 {
+                return Err(StdError::generic_err("msg"));
+            }
+        }
+
+        let mut hasher = Hasher::default();
+        for seed in seeds.iter() {
+            hasher.hash(seed);
+        }
+        hasher.hashv(&[program_id.0.as_slice(), PDA_MARKER]);
+        let hash = hasher.result();
+
+        if bytes_are_curve_point(hash.0) {
+            return Err(StdError::generic_err("invalid seed"));
+        }
+
+        Pubkey::from_slice(hash.0.as_slice())
     }
 }
 

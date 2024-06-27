@@ -6,8 +6,8 @@ pub mod wasm;
 use astromesh::{MsgAstroTransfer, Swap};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128,
-    Int256, MessageInfo, Response, StdResult, Uint128, Uint256,
+    entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, Int256,
+    MessageInfo, Response, StdResult, Uint128, Uint256,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
 use evm::uniswap;
@@ -96,10 +96,12 @@ pub fn get_output_amount(pool: &Pool, x: Int256, a_for_b: bool) -> Int256 {
     let bps = Int256::from_i128(BPS);
     match pool.dex_name.as_str() {
         // astroport applies fee rate after swap => a1*x / (b1 + x) * (1-fee_rate)
-        ASTROPORT => if a_for_b { 
-            (pool.b * x) * (bps - pool.fee_rate) / ((pool.a + x) * bps) 
-        } else { 
-            (pool.a * x) * (bps - pool.fee_rate) / ((pool.b + x) * bps) 
+        ASTROPORT => {
+            if a_for_b {
+                (pool.b * x) * (bps - pool.fee_rate) / ((pool.a + x) * bps)
+            } else {
+                (pool.a * x) * (bps - pool.fee_rate) / ((pool.b + x) * bps)
+            }
         }
 
         // raydium applies fee rate before swap
@@ -121,9 +123,8 @@ pub fn get_output_amount(pool: &Pool, x: Int256, a_for_b: bool) -> Int256 {
             }
         }
 
-        _ => panic!("unsupported dex")
+        _ => panic!("unsupported dex"),
     }
-    
 }
 
 // swap x from a to b in src_pool, use same b amount to swap b to a in dst_pool
@@ -255,10 +256,15 @@ pub fn parse_pool(swap: &Swap, input: &FisInput, reverse: bool) -> Result<Pool, 
         }
         UNISWAP => {
             let pool_info = uniswap::parse_pool_info(input.data.get(0).unwrap().as_slice())?;
-            let liquidity = Uint256::from_be_bytes(input.data.get(1).unwrap().as_slice().try_into().unwrap());
+            let liquidity =
+                Uint256::from_be_bytes(input.data.get(1).unwrap().as_slice().try_into().unwrap());
 
             let uniswap_params = swap.uniswap_input.clone().unwrap();
-            let (mut a, mut b) = pool_info.calculate_liquidity_amounts(liquidity, uniswap_params.lower_tick, uniswap_params.upper_tick);
+            let (mut a, mut b) = pool_info.calculate_liquidity_amounts(
+                liquidity,
+                uniswap_params.lower_tick,
+                uniswap_params.upper_tick,
+            );
             if !uniswap_params.zero_for_one {
                 (a, b) = (b, a)
             }
@@ -318,7 +324,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     _deps.api.debug("parsed pools");
     // calculate profit for target pool with ideal scenario (no pool fees)
-    let optimal_x= get_max_profit_point(src_pool.a, src_pool.b, dst_pool.a, dst_pool.b);
+    let optimal_x = get_max_profit_point(src_pool.a, src_pool.b, dst_pool.a, dst_pool.b);
     let optimal_x = adjust_optimal_x(optimal_x, src_pool.clone(), dst_pool.clone());
     let (_, second_optimal_swap_output) = calculate_pools_output(&src_pool, &dst_pool, optimal_x);
     let profit = second_optimal_swap_output - optimal_x;
@@ -337,19 +343,20 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         })
         .unwrap());
     }
-    
+
     let execute_amount = min(
         optimal_x,
         Int256::from(src_swap.input_amount.unwrap().i128()),
     );
-    let (first_swap_output, second_swap_output) = calculate_pools_output(&src_pool, &dst_pool, execute_amount);
+    let (first_swap_output, second_swap_output) =
+        calculate_pools_output(&src_pool, &dst_pool, execute_amount);
     let sender = env.contract.address.to_string();
     dst_swap.input_amount = Some(Int128::from_be_bytes(
         first_swap_output.to_be_bytes()[16..32].try_into().unwrap(),
     ));
 
     // actions, take usdt > btc arbitrage as example
-    // 1. do swap usdt to btc src pool 
+    // 1. do swap usdt to btc src pool
     // 2. transfer the swapped btc amount to dst pool
     // 3. swap the btc amount to usdt in dst pool
     // 4. transfer usdt back to src pool

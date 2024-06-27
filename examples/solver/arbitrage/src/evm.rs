@@ -1,5 +1,5 @@
 use cosmwasm_std::{Binary, Decimal256, Int256, StdError, Uint256};
-use fixed::{types::extra, FixedU128};
+// use fixed::{types::extra, FixedU128};
 
 use serde::{Deserialize, Serialize};
 
@@ -125,16 +125,22 @@ pub mod uniswap {
 
     impl PoolInfo {
         // returns currentcy0, currency1 amount
-        pub fn calculate_liquidity_amounts(&self, liquidity: Uint256, lower_tick: i32, upper_tick: i32) -> (Int256, Int256) {
+        pub fn calculate_liquidity_amounts(
+            &self,
+            liquidity: Uint256,
+            lower_tick: i32,
+            upper_tick: i32,
+        ) -> (Int256, Int256) {
             let lower_price = get_price_at_tick(lower_tick);
             let upper_price = get_price_at_tick(upper_tick);
             let cur_price = self.sqrt_price_x96;
 
             // token0 = L * (1/sqrt(curPrice) - 1/sqrt(upperPrice))
             // token1 =  L * (sqrt(curPrice) - sqrt(lowerPrice))
-            let denom_0_amount = ((liquidity * (upper_price - cur_price)) << 96) / (cur_price * upper_price);
+            let denom_0_amount =
+                ((liquidity * (upper_price - cur_price)) << 96) / (cur_price * upper_price);
             let denom_1_amount = (liquidity * (cur_price - lower_price)) >> 96;
-            
+
             (
                 Int256::from_be_bytes(denom_0_amount.to_be_bytes()),
                 Int256::from_be_bytes(denom_1_amount.to_be_bytes()),
@@ -197,25 +203,12 @@ fn left_pad(input: &[u8], expected_len: usize) -> Result<Vec<u8>, StdError> {
     Ok(padded)
 }
 
-// pub fn my_get_sqrt_price_at_tick(tick: i32) -> Int256 {
-//     let base = fixed::FixedU128::<extra::U96>::from_num(1.0001);
-//     // for odd P, 1.0001^(P/2) = 1.0001^((2k+1)/2) = 1.0001^k * 1.0001^(1/2)
-//     let mut res = base.clone();
-//     for _ in 0..tick {
-//         res = res * base;
-//     }
-
-//     if tick % 2 != 0 {
-//         res = res * base.sqrt()
-//     };
-
-//     println!("res: {}", res.to_string());
-
-//     Int256::from_be_bytes(left_pad(res.to_be_bytes().as_slice(), 32).unwrap().try_into().unwrap())
-// }
-
 pub fn get_price_at_tick(tick: i32) -> Uint256 {
-    let abs_tick: u32 = if tick < 0 { (-tick) as u32 } else { tick as u32 };
+    let abs_tick: u32 = if tick < 0 {
+        (-tick) as u32
+    } else {
+        tick as u32
+    };
 
     if abs_tick > MAX_TICK {
         panic!("InvalidTick");
@@ -224,7 +217,17 @@ pub fn get_price_at_tick(tick: i32) -> Uint256 {
     let mut price: Uint256 = if abs_tick & 1 != 0 {
         Uint256::from(0xfffcb933bd6fad37aa2d162d1a594001u128)
     } else {
-        Uint256::from_be_bytes(left_pad(hex::decode("0100000000000000000000000000000000").unwrap().as_slice(), 32).unwrap().try_into().unwrap())
+        Uint256::from_be_bytes(
+            left_pad(
+                hex::decode("0100000000000000000000000000000000")
+                    .unwrap()
+                    .as_slice(),
+                32,
+            )
+            .unwrap()
+            .try_into()
+            .unwrap(),
+        )
     };
 
     if abs_tick & 2 != 0 {
@@ -294,7 +297,6 @@ pub fn get_price_at_tick(tick: i32) -> Uint256 {
     let sqrt_price_x96 = price_with_rounding >> 32;
     sqrt_price_x96
 }
-
 
 // more dapp types goes here
 #[derive(Serialize, Deserialize, Debug, Clone)]
