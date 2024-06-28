@@ -3,7 +3,7 @@ pub mod evm;
 pub mod svm;
 pub mod test;
 pub mod wasm;
-use astromesh::{FISInput, MsgAstroTransfer, NexusAction, Pool, Swap};
+use astromesh::{FISInput, FISInstruction, MsgAstroTransfer, NexusAction, Pool, Swap};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, Int256,
@@ -13,8 +13,9 @@ use cosmwasm_std::{from_json, Isqrt, StdError};
 use evm::uniswap;
 use std::cmp::min;
 use std::vec::Vec;
+use svm::raydium::RaydiumPool;
 use svm::{raydium, Account, TokenAccount};
-use wasm::astroport::{self, AssetInfo};
+use wasm::astroport::{self, AssetInfo, AstroportPool};
 const UNISWAP: &str = "uniswap"; // to be supported
 
 const BPS: i128 = 1000000i128;
@@ -52,63 +53,27 @@ pub struct QueryMsg {
 }
 
 #[cw_serde]
-pub struct FISInstruction {
-    plane: String,
-    action: String,
-    address: String,
-    msg: Vec<u8>,
-}
-
-#[cw_serde]
 pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
 }
 
-pub fn get_output_amount(pool: &Pool, x: Int256, a_for_b: bool) -> Int256 {
-    // (a+x)(b-y) = ab
-    // y = b - a*b/(a+x) = xb/(a + x)
-    let bps = Int256::from_i128(BPS);
-    match pool.dex_name.as_str() {
-        // astroport applies fee rate after swap => a1*x / (b1 + x) * (1-fee_rate)
-        ASTROPORT => {
-            if a_for_b {
-                (pool.b * x) * (bps - pool.fee_rate) / ((pool.a + x) * bps)
-            } else {
-                (pool.a * x) * (bps - pool.fee_rate) / ((pool.b + x) * bps)
-            }
-        }
-
-        // raydium applies fee rate before swap
-        RAYDIUM => {
-            let x = x * (bps - pool.fee_rate) / bps;
-
-            if a_for_b {
-                (pool.b * x) / (pool.a + x)
-            } else {
-                (pool.a * x) / (pool.b + x)
-            }
-        }
-
-        UNISWAP => {
-            if a_for_b {
-                (pool.b * x) / (pool.a + x)
-            } else {
-                (pool.a * x) / (pool.b + x)
-            }
-        }
-
-        _ => panic!("unsupported dex"),
-    }
-}
-
 // swap x from a to b in src_pool, use same b amount to swap b to a in dst_pool
 // this function returns output amount of each swap with input x
-pub fn calculate_pools_output(src_pool: &Pool, dst_pool: &Pool, x: Int256) -> (Int256, Int256) {
+pub fn calculate_pools_output(
+    src_pool: &Box<dyn Pool>,
+    dst_pool: &Box<dyn Pool>,
+    x: Int256,
+) -> (String, Int256, String, Int256) {
     // swap a for b in src_pool
-    let first_swap_output = get_output_amount(src_pool, x, true);
+    let (first_output_denom, first_swap_output) = src_pool.swap_output(x, true);
     // swap b for a in dst_pool
-    let second_swap_output = get_output_amount(dst_pool, first_swap_output, false);
-    (first_swap_output, second_swap_output)
+    let (second_output_denom, second_swap_output) = dst_pool.swap_output(first_swap_output, false);
+    (
+        first_output_denom,
+        first_swap_output,
+        second_output_denom,
+        second_swap_output,
+    )
 }
 
 pub fn to_uint256(i: Int256) -> Uint256 {
@@ -133,12 +98,16 @@ pub fn get_max_profit_point(a1: Int256, b1: Int256, a2: Int256, b2: Int256) -> I
     optimal_x
 }
 
-pub fn swap(sender: String, swap: &Swap) -> Result<FISInstruction, StdError> {
-    let cloned_swap = swap.to_owned();
-    match swap.dex_name.as_str() {
-        RAYDIUM => raydium::compose_swap_fis(sender, cloned_swap),
-        ASTROPORT => astroport::compose_swap_fis(sender, cloned_swap),
-        _ => Err(StdError::generic_err("unsupported dex")),
+pub fn get_pair_output_denom(input_denom: &str, pair: &String) -> String {
+    match pair.as_str() {
+        "btc-usdt" => {
+            if input_denom == "btc" {
+                "usdt".to_string()
+            } else {
+                "btc".to_string()
+            }
+        }
+        _ => "".to_string(),
     }
 }
 
@@ -172,12 +141,16 @@ pub fn astro_transfer(
 }
 
 // this estimates optimal_x with pool fee
-pub fn adjust_optimal_x(optimal_x: Int256, src_pool: Pool, dst_pool: Pool) -> Int256 {
+pub fn adjust_optimal_x(
+    optimal_x: Int256,
+    src_pool: &Box<dyn Pool>,
+    dst_pool: &Box<dyn Pool>,
+) -> Int256 {
     // ratio = a1/a_decimal/(b1 / b_decimal) / (a2/a_decimal/(b2/b_decimal)) - 1
-    let a1 = src_pool.a;
-    let b1 = src_pool.b;
-    let a2 = dst_pool.a;
-    let b2 = dst_pool.b;
+    let a1 = src_pool.a();
+    let b1 = src_pool.b();
+    let a2 = dst_pool.a();
+    let b2 = dst_pool.b();
     let one = Int256::from_i128(1_000_000i128);
     let ratio = a1 * b2 * one / (b1 * a2) - one;
     // price change > -1%
@@ -197,12 +170,9 @@ pub fn arbitrage(
     env: Env,
     pair: String,
     amount: Int128,
-    min_profit: Option<Int256>,
+    min_profit: Option<Int128>,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
-    // TODO: asserts with meaningful messages
-    // wasm, svm
-    // pool queries
     let raw_pools = [
         fis_input
             .get(0)
@@ -213,60 +183,41 @@ pub fn arbitrage(
     ];
 
     // parse pools
-    let parsed_pools = [
-        &astroport::parse_pool(raw_pools[0])?,
-        &raydium::parse_pool(raw_pools[1])?,
+    let parsed_pools: Vec<Box<dyn Pool>> = vec![
+        Box::new(AstroportPool::from_fis(raw_pools[0])?),
+        Box::new(RaydiumPool::from_fis(raw_pools[0])?),
     ];
 
-    let mut src_pool: &Pool;
-    let mut dst_pool: &Pool;
-
+    // detect best swap route, i.e
+    // buy on low rate and sell on higher rate pool
+    let mut src_pool_opt: Option<&Box<dyn Pool>> = None;
+    let mut dst_pool_opt: Option<&Box<dyn Pool>> = None;
     let (mut lowest_rate, mut highest_rate) = (Int256::MAX, Int256::MIN);
-    // detect best swap rate
-    // buy on low rate and sell on higher rate
+
     for i in 0..parsed_pools.len() {
-        let rate = parsed_pools[i].a / parsed_pools[i].b;
+        let rate = parsed_pools[i].a() / parsed_pools[i].b();
         if lowest_rate > rate {
-            src_pool = parsed_pools[i];
+            src_pool_opt = Some(&parsed_pools[i]);
+            lowest_rate = rate
         }
 
         if highest_rate < rate {
-            dst_pool = parsed_pools[i];
+            dst_pool_opt = Some(&parsed_pools[i]);
+            highest_rate = rate
         }
     }
 
-    // 2 pools are the same, no way but defense check
-    if src_pool.dex_name == dst_pool.dex_name {
-        return Err(StdError::generic_err("two detected swap pool are same, nothing executed"))
-    }
-
-    // compose the swap
-    let src_swap = Swap { 
-        dex_name: src_pool.dex_name, 
-        pool_name: pair, 
-        denom: "usdt".to_string(), 
-        amount: amount,
-    };
-
-    let mut dst_swap = Swap {
-        dex_name: dst_pool.dex_name,
-        pool_name: pair,
-        denom: "".to_string(),
-        amount: Int128::zero(), // to be updated later
-    };
-
-    // // TODO: detect source and dst swap
-    // let src_swap = swaps.get(0).unwrap().clone();
-    // let mut dst_swap = swaps.get(1).unwrap().clone();
+    let (src_pool, dst_pool) = (src_pool_opt.unwrap(), dst_pool_opt.unwrap());
     // calculate profit for target pool with ideal scenario (no pool fees)
-    let optimal_x = get_max_profit_point(src_pool.a, src_pool.b, dst_pool.a, dst_pool.b);
-    let optimal_x = adjust_optimal_x(optimal_x, src_pool.clone(), dst_pool.clone());
-    let (_, second_optimal_swap_output) = calculate_pools_output(&src_pool, &dst_pool, optimal_x);
+    let optimal_x = get_max_profit_point(src_pool.a(), src_pool.b(), dst_pool.a(), dst_pool.b());
+    let optimal_x = adjust_optimal_x(optimal_x, src_pool, dst_pool);
+    let (first_output_denom, _, _, second_optimal_swap_output) =
+        calculate_pools_output(src_pool, dst_pool, optimal_x);
     let profit = second_optimal_swap_output - optimal_x;
     deps.api.debug(
         format!(
-            "pool s {:#?}, pool d: {:#?}, optimal x: {}, optimal profit: {}",
-            src_pool, dst_pool, optimal_x, profit
+            "optimal x: {}, estimate optimal profit: {}",
+            optimal_x, profit,
         )
         .as_str(),
     );
@@ -279,16 +230,30 @@ pub fn arbitrage(
         .unwrap());
     }
 
-    let execute_amount = min(
-        optimal_x,
-        Int256::from(src_swap.amount.i128()),
-    );
-    let (first_swap_output, second_swap_output) =
-        calculate_pools_output(&src_pool, &dst_pool, execute_amount);
+    // compose the swap
     let sender = env.contract.address.to_string();
-    dst_swap.amount = Int128::from_be_bytes(
-        first_swap_output.to_be_bytes()[16..32].try_into().unwrap(),
-    );
+    let src_swap = Swap {
+        sender: sender.clone(),
+        dex_name: src_pool.dex_name(),
+        pool_name: pair.clone(),
+        denom: "usdt".to_string(),
+        amount,
+    };
+
+    let mut dst_swap = Swap {
+        sender,
+        dex_name: dst_pool.dex_name(),
+        pool_name: pair.clone(),
+        denom: get_pair_output_denom("usdt", &pair),
+        amount: Int128::zero(), // to be updated after calculations
+    };
+
+    let execute_amount = min(optimal_x, Int256::from(src_swap.amount.i128()));
+    let (first_output_denom, first_swap_output, second_output_denom, second_swap_output) =
+        calculate_pools_output(src_pool, dst_pool, execute_amount);
+    let sender = env.contract.address.to_string();
+    dst_swap.amount =
+        Int128::from_be_bytes(first_swap_output.to_be_bytes()[16..32].try_into().unwrap());
 
     // actions, take usdt > btc arbitrage as example
     // 1. do swap usdt to btc src pool
@@ -296,20 +261,20 @@ pub fn arbitrage(
     // 3. swap the btc amount to usdt in dst pool
     // 4. transfer usdt back to src pool
     let instructions = vec![
-        swap(sender.clone(), &src_swap)?,
+        src_pool.compose_swap_fis(&src_swap)?,
         astro_transfer(
             sender.clone(),
-            &src_pool.denom_plane,
-            &dst_pool.denom_plane,
-            src_swap.output_denom,
+            &src_pool.denom_plane(),
+            &dst_pool.denom_plane(),
+            first_output_denom,
             to_u128(first_swap_output),
         ),
-        swap(sender.clone(), &dst_swap)?,
+        dst_pool.compose_swap_fis(&dst_swap)?,
         astro_transfer(
             sender.clone(),
-            &dst_pool.denom_plane,
-            &src_pool.denom_plane,
-            dst_swap.clone().output_denom,
+            &dst_pool.denom_plane(),
+            &src_pool.denom_plane(),
+            second_output_denom,
             to_u128(second_swap_output),
         ),
     ];
@@ -319,14 +284,14 @@ pub fn arbitrage(
 
 // Let's do astroport + raydium for now
 #[entry_point]
-pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let action = from_json::<Vec<NexusAction>>(msg.msg)?;
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let action = from_json::<NexusAction>(msg.msg)?;
     match action {
         NexusAction::Arbitrage {
             pair,
-            usdt_amount,
+            amount,
             min_profit,
-        } => arbitrage(deps, env, pair, amount, min_profit),
+        } => arbitrage(deps, env, pair, amount, min_profit, &msg.fis_input),
         // more actions goes here
     }
 }

@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, Int128, Int256};
+use cosmwasm_std::{Binary, Coin, Int128, Int256, StdError};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -41,33 +41,35 @@ pub struct FISInput {
 pub struct Swap {
     pub dex_name: String,
     pub pool_name: String,
+    pub sender: String,
     pub denom: String,
     pub amount: Int128,
 }
 
-#[cw_serde]
-#[derive(Default)]
-pub struct Pool {
-    pub dex_name: String,
-    pub denom_plane: String,
-    pub a: Int256,
-    pub b: Int256,
-    pub fee_rate: Int256,
+pub trait Pool {
+    fn dex_name(&self) -> String;
+    fn denom_plane(&self) -> String;
+    fn a(&self) -> Int256;
+    fn b(&self) -> Int256;
+    // returns denom (within denom_plane) and the swap amount
+    fn swap_output(&self, input_amount: Int256, a_for_b: bool) -> (String, Int256);
+    fn compose_swap_fis(&self, swap: &Swap) -> Result<FISInstruction, StdError>;
+    // other functionalities goes here
 }
 
 #[cw_serde]
 pub struct FISInstruction {
-    plane: String,
-    action: String,
-    address: String,
-    msg: Vec<u8>,
+    pub plane: String,
+    pub action: String,
+    pub address: String,
+    pub msg: Vec<u8>,
 }
 
 #[cw_serde]
 pub enum NexusAction {
     Arbitrage {
         pair: String, // 3 pools needed and only need usdt amount, usdt => X => usdt
-        usdt_amount: Int256,
-        min_profit: Option<Int256>,
+        amount: Int128,
+        min_profit: Option<Int128>,
     },
 }

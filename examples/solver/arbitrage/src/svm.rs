@@ -3,19 +3,18 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub mod raydium {
-    use crate::{
-        astromesh::{FISInput, Pool, Swap},
-        FISInstruction,
-    };
+    use crate::astromesh::{FISInput, FISInstruction, Pool, Swap};
+    use cosmwasm_schema::cw_serde;
     use cosmwasm_std::{to_json_vec, Binary, Int256, StdError};
     use tiny_keccak::{Hasher, Keccak};
 
     use super::{Account, Instruction, InstructionAccount, MsgTransaction, Pubkey, TokenAccount};
 
-    const RAYDIUM: &str = "raydium";
-    const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
-    const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
-    const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+    pub const RAYDIUM: &str = "raydium";
+    pub const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+    pub const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
+    pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+    pub const BPS: i128 = 1000000i128;
 
     #[derive(Clone)]
     pub struct PoolAccounts {
@@ -49,7 +48,7 @@ pub mod raydium {
         match denom.as_str() {
             "btc" => "9kWnPUAkspGW6qGPPah1aAdH316nkiJhow5neRs5YDej".to_string(),
             "usdt" => "HwkqUQaXocRwNLGX2qKmC3Sk4uTVxmzmCEAEHDwSj4KQ".to_string(),
-            _ => "unknown".to_string(),
+            _ => denom.clone(),
         }
     }
 
@@ -202,94 +201,140 @@ pub mod raydium {
         output
     }
 
-    pub fn compose_swap_fis(sender: String, swap: Swap) -> Result<FISInstruction, StdError> {
-        // let accounts = swap.raydium_accounts.unwrap();
-        let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
-        let (_, sender_bz) = bech32::decode(sender.as_str()).unwrap();
-        let sender_svm_account: Pubkey =
-            Pubkey::from_slice(keccak256(&sender_bz.as_slice()).as_slice())?;
-        let input_denom = get_denom(swap.denom);
-        let (mut input_vault, mut output_vault) = (accounts.token0_vault, accounts.token1_vault);
-        if &input_denom == &accounts.token1_mint {
-            (input_vault, output_vault) = (output_vault, input_vault);
-        }
-
-        let output_denom = if input_denom == accounts.token0_mint {
-            accounts.token1_mint
-        } else {
-            accounts.token0_mint
-        };
-
-        let input_denom_pk = Pubkey::from_string(&input_denom)?;
-        let output_denom_pk = Pubkey::from_string(&output_denom)?;
-        let token_program = Pubkey::from_string(&SPL_TOKEN_2022.to_string())?;
-        let ata_program = Pubkey::from_string(&ASSOCIATED_TOKEN_PROGRAM_ID.to_string())?;
-
-        let (input_token_account, _) = Pubkey::find_program_address(
-            &[&sender_svm_account.0, &token_program.0, &input_denom_pk.0],
-            &ata_program,
-        )
-        .unwrap();
-        let (output_token_account, _) = Pubkey::find_program_address(
-            &[&sender_svm_account.0, &token_program.0, &output_denom_pk.0],
-            &ata_program,
-        )
-        .unwrap();
-
-        let msg = swap_base_input(
-            sender,
-            swap.amount.i128() as u64,
-            0,
-            sender_svm_account.to_string(),
-            // sender_svm_account.to_string(),
-            accounts.authority_account,
-            accounts.amm_config_account,
-            accounts.pool_state_account,
-            input_token_account.to_string(),
-            output_token_account.to_string(),
-            input_vault,
-            output_vault,
-            input_denom,
-            output_denom,
-            accounts.observer_state,
-        );
-        Ok(FISInstruction {
-            plane: "SVM".to_string(),
-            action: "VM_INVOKE".to_string(),
-            address: "".to_string(),
-            msg: to_json_vec(&msg)?,
-        })
+    #[cw_serde]
+    #[derive(Default)]
+    pub struct RaydiumPool {
+        pub dex_name: String,
+        pub denom_plane: String,
+        pub a: Int256,
+        pub b: Int256,
+        pub fee_rate: Int256,
+        pub denom_a: String,
+        pub denom_b: String,
     }
 
-    pub fn parse_pool(input: &FISInput) -> Result<Pool, StdError> {
-        let token_0_vault_account = Account::from_json_bytes(
-            input
-                .data
-                .get(0)
-                .ok_or(StdError::not_found("expected account 0"))?,
-        )?;
-        let token_1_vault_account = Account::from_json_bytes(
-            input
-                .data
-                .get(1)
-                .ok_or(StdError::not_found("expected account 1"))?,
-        )?;
-        let token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
-        let token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
-        // TODO: more constraint as validate basic
-        let (mut a, mut b) = (token_0_info.amount, token_1_info.amount);
-        // we always swap from usdt so let it be the first
-        if token_0_info.mint.to_string() != get_denom(&"usdt".to_string()) {
-            (a, b) = (b, a)
+    impl RaydiumPool {
+        pub fn from_fis(input: &FISInput) -> Result<Self, StdError> {
+            let token_0_vault_account = Account::from_json_bytes(
+                input
+                    .data
+                    .get(0)
+                    .ok_or(StdError::not_found("expected account 0"))?,
+            )?;
+            let token_1_vault_account = Account::from_json_bytes(
+                input
+                    .data
+                    .get(1)
+                    .ok_or(StdError::not_found("expected account 1"))?,
+            )?;
+            let token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
+            let token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
+            // TODO: more constraint as validate basic
+            let (mut a, mut b) = (token_0_info.amount, token_1_info.amount);
+            // we always swap from usdt so let it be the first
+            if token_0_info.mint.to_string() != get_denom(&"usdt".to_string()) {
+                (a, b) = (b, a)
+            }
+
+            Ok(Self {
+                dex_name: RAYDIUM.to_string(),
+                denom_plane: "SVM".to_string(),
+                a: Int256::from_i128(a as i128),
+                b: Int256::from_i128(b as i128),
+                fee_rate: Int256::from(1000i128),
+                denom_a: token_0_info.mint.to_string(),
+                denom_b: token_1_info.mint.to_string(),
+            })
+        }
+    }
+
+    impl Pool for RaydiumPool {
+        fn dex_name(&self) -> String {
+            self.dex_name.clone()
         }
 
-        Ok(Pool {
-            dex_name: RAYDIUM.to_string(),
-            denom_plane: "SVM".to_string(),
-            a: Int256::from_i128(a as i128),
-            b: Int256::from_i128(b as i128),
-            fee_rate: Int256::from(1000i128),
-        })
+        fn denom_plane(&self) -> String {
+            self.denom_plane.clone()
+        }
+
+        fn a(&self) -> Int256 {
+            self.a.clone()
+        }
+
+        fn b(&self) -> Int256 {
+            self.b.clone()
+        }
+
+        fn swap_output(&self, x: Int256, a_for_b: bool) -> (String, Int256) {
+            let bps = Int256::from_i128(BPS);
+            let x = x * (bps - self.fee_rate) / bps;
+
+            if a_for_b {
+                (self.denom_b.clone(), (self.b * x) / (self.a + x))
+            } else {
+                (self.denom_a.clone(), (self.a * x) / (self.b + x))
+            }
+        }
+
+        fn compose_swap_fis(&self, swap: &Swap) -> Result<FISInstruction, StdError> {
+            // let accounts = swap.raydium_accounts.unwrap();
+            let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
+            let (_, sender_bz) = bech32::decode(swap.sender.as_str()).unwrap();
+            let sender_svm_account: Pubkey =
+                Pubkey::from_slice(keccak256(&sender_bz.as_slice()).as_slice())?;
+            let input_denom = get_denom(&swap.denom);
+            let (mut input_vault, mut output_vault) =
+                (accounts.token0_vault, accounts.token1_vault);
+            if &input_denom == &accounts.token1_mint {
+                (input_vault, output_vault) = (output_vault, input_vault);
+            }
+
+            let output_denom = if input_denom == accounts.token0_mint {
+                accounts.token1_mint
+            } else {
+                accounts.token0_mint
+            };
+
+            let input_denom_pk = Pubkey::from_string(&input_denom)?;
+            let output_denom_pk = Pubkey::from_string(&output_denom)?;
+            let token_program = Pubkey::from_string(&SPL_TOKEN_2022.to_string())?;
+            let ata_program = Pubkey::from_string(&ASSOCIATED_TOKEN_PROGRAM_ID.to_string())?;
+
+            let (input_token_account, _) = Pubkey::find_program_address(
+                &[&sender_svm_account.0, &token_program.0, &input_denom_pk.0],
+                &ata_program,
+            )
+            .unwrap();
+            let (output_token_account, _) = Pubkey::find_program_address(
+                &[&sender_svm_account.0, &token_program.0, &output_denom_pk.0],
+                &ata_program,
+            )
+            .unwrap();
+
+            let msg = swap_base_input(
+                swap.sender.clone(),
+                swap.amount.i128() as u64,
+                0,
+                sender_svm_account.to_string(),
+                // sender_svm_account.to_string(),
+                accounts.authority_account,
+                accounts.amm_config_account,
+                accounts.pool_state_account,
+                input_token_account.to_string(),
+                output_token_account.to_string(),
+                input_vault,
+                output_vault,
+                input_denom,
+                output_denom,
+                accounts.observer_state,
+            );
+            Ok(FISInstruction {
+                plane: "SVM".to_string(),
+                action: "VM_INVOKE".to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&msg)?,
+            })
+        }
     }
 }
 
