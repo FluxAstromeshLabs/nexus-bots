@@ -271,8 +271,7 @@ pub mod raydium {
         pub fn from_fis(input: &FISInput) -> Result<Self, StdError> {
             let token_0_vault_account = Account::from_json_bytes(
                 input
-                    .data
-                    .get(0)
+                    .data.first()
                     .ok_or(StdError::not_found("expected account 0"))?,
             )?;
             let token_1_vault_account = Account::from_json_bytes(
@@ -313,11 +312,11 @@ pub mod raydium {
         }
 
         fn a(&self) -> Int256 {
-            self.a.clone()
+            self.a
         }
 
         fn b(&self) -> Int256 {
-            self.b.clone()
+            self.b
         }
 
         fn swap_output(&self, x: Int256, a_for_b: bool) -> (String, Int256) {
@@ -335,12 +334,10 @@ pub mod raydium {
             let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
             let (_, sender_bz) = bech32::decode(swap.sender.as_str()).unwrap();
             let sender_svm_account: Pubkey =
-                Pubkey::from_slice(keccak256(&sender_bz.as_slice()).as_slice()).or_else(|e| {
-                    Err(StdError::generic_err(format!(
+                Pubkey::from_slice(keccak256(sender_bz.as_slice()).as_slice()).map_err(|e| StdError::generic_err(format!(
                         "parse svm err: {}",
-                        e.to_string()
-                    )))
-                })?;
+                        e
+                    )))?;
             let input_denom = get_denom(&swap.denom);
             let (mut input_vault, mut output_vault) =
                 (accounts.token0_vault, accounts.token1_vault);
@@ -503,15 +500,12 @@ impl Pubkey {
 
     pub fn from_string(s: &String) -> Result<Self, StdError> {
         let bz = bs58::decode(s.as_str())
-            .into_vec()
-            .or_else(|e| Err(StdError::generic_err(e.to_string())))?;
-        Pubkey::from_slice(bz.as_slice()).or_else(|e| {
-            Err(StdError::generic_err(format!(
+            .into_vec().map_err(|e| StdError::generic_err(e.to_string()))?;
+        Pubkey::from_slice(bz.as_slice()).map_err(|e| StdError::generic_err(format!(
                 "pubkey from string: {}: {}",
                 s,
-                e.to_string()
+                e
             )))
-        })
     }
 
     pub fn find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)> {

@@ -83,8 +83,8 @@ pub mod astroport {
 
     impl AstroportPool {
         pub fn from_fis(input: &FISInput) -> Result<Self, StdError> {
-            let pool_info = from_json::<PoolResponse>(input.data.get(0).unwrap())?;
-            let asset_0 = pool_info.assets.get(0).unwrap();
+            let pool_info = from_json::<PoolResponse>(input.data.first().unwrap())?;
+            let asset_0 = pool_info.assets.first().unwrap();
             let asset_1 = pool_info.assets.get(1).unwrap();
             let mut asset_0_denom = match &asset_0.info {
                 AssetInfo::Token { contract_addr } => contract_addr.to_string(),
@@ -123,11 +123,11 @@ pub mod astroport {
         }
 
         fn a(&self) -> Int256 {
-            self.a.clone()
+            self.a
         }
 
         fn b(&self) -> Int256 {
-            self.b.clone()
+            self.b
         }
 
         fn swap_output(&self, x: Int256, a_for_b: bool) -> (String, Int256) {

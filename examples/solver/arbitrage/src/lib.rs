@@ -1,5 +1,4 @@
 pub mod astromesh;
-pub mod evm;
 pub mod svm;
 pub mod test;
 pub mod wasm;
@@ -13,7 +12,7 @@ use cosmwasm_std::{from_json, Isqrt, StdError};
 use std::cmp::min;
 use std::vec::Vec;
 use svm::raydium::RaydiumPool;
-use wasm::astroport::{self, AssetInfo, AstroportPool};
+use wasm::astroport::{AstroportPool};
 const UNISWAP: &str = "uniswap"; // to be supported
 
 const BPS: i128 = 1000000i128;
@@ -89,11 +88,10 @@ pub fn to_u128(i: Int256) -> u128 {
 // contract: use x a1 to get b1
 // use a1 as a2 to get b2 => profit = output (b1) - input (b1)
 pub fn get_max_profit_point(a1: Int256, b1: Int256, a2: Int256, b2: Int256) -> Int256 {
-    let optimal_x =
-        (to_int256(Isqrt::isqrt(to_uint256(a1 * b1)) * Isqrt::isqrt(to_uint256(a2 * b2)))
+    
+    (to_int256(Isqrt::isqrt(to_uint256(a1 * b1)) * Isqrt::isqrt(to_uint256(a2 * b2)))
             - a1 * b2)
-            / (b1 + b2);
-    optimal_x
+            / (b1 + b2)
 }
 
 pub fn get_pair_output_denom(input_denom: &str, pair: &String) -> String {
@@ -188,8 +186,7 @@ pub fn arbitrage(
     deps.api
         .debug(format!("fis_input: {:#?}", fis_input).as_str());
     let raw_pools = [
-        fis_input
-            .get(0)
+        fis_input.first()
             .ok_or(StdError::generic_err("astroport pool data not found"))?,
         fis_input
             .get(1)
