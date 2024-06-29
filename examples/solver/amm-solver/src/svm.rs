@@ -61,7 +61,7 @@ pub mod raydium {
                 token1_vault: "6DY4BxWgdoNG557vXUif4A6AdMSSrR7RH4uarfBW7vb5".to_string(),
                 observer_state: "8rvsAHa9HztPWoioR8w6FR64VdS3TZCCmK52i1xCEJoF".to_string(),
             }),
-            name => Err(StdError::not_found(name)),
+            name => Err(StdError::generic_err(format!("raydium pair not found: {}", name))),
         }
     }
 
@@ -295,13 +295,13 @@ pub mod raydium {
                 input
                     .data
                     .first()
-                    .ok_or(StdError::not_found("expected account 0"))?,
+                    .ok_or(StdError::generic_err("expected account 0"))?,
             )?;
             let token_1_vault_account = Account::from_json_bytes(
                 input
                     .data
                     .get(1)
-                    .ok_or(StdError::not_found("expected account 1"))?,
+                    .ok_or(StdError::generic_err("expected account 1"))?,
             )?;
             let mut token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
             let mut token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;

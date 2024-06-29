@@ -2,7 +2,7 @@ pub mod astromesh;
 pub mod svm;
 pub mod test;
 pub mod wasm;
-use astromesh::{FISInput, FISInstruction, MsgAstroTransfer, NexusAction, Pool, Swap};
+use astromesh::{to_int256, to_u128, to_uint256, FISInput, FISInstruction, MsgAstroTransfer, NexusAction, Pool, Swap};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, Int256,
@@ -68,18 +68,6 @@ pub fn calculate_pools_output(
         second_output_denom,
         second_swap_output,
     )
-}
-
-pub fn to_uint256(i: Int256) -> Uint256 {
-    Uint256::from_be_bytes(i.to_be_bytes())
-}
-
-pub fn to_int256(i: Uint256) -> Int256 {
-    Int256::from_be_bytes(i.to_be_bytes())
-}
-
-pub fn to_u128(i: Int256) -> u128 {
-    u128::from_be_bytes(i.to_be_bytes()[16..32].try_into().expect("must be u128"))
 }
 
 // contract: use x a1 to get b1
@@ -211,8 +199,11 @@ pub fn arbitrage(
     let mut dst_pool_opt: Option<&Box<dyn Pool>> = None;
     let (mut lowest_rate, mut highest_rate) = (Int256::MAX, Int256::MIN);
 
+    let multiplier = Int256::from_i128(1_000_000_000_000_000_000_000_000_000i128);
     for i in 0..parsed_pools.len() {
-        let rate = parsed_pools[i].a() / parsed_pools[i].b();
+        // trick: use multiplier to get over usdt and other denom's decimal
+        // it's fine to compare the ratios with same multiplier 
+        let rate = parsed_pools[i].a() * multiplier / parsed_pools[i].b();
         if lowest_rate > rate {
             src_pool_opt = Some(&parsed_pools[i]);
             lowest_rate = rate

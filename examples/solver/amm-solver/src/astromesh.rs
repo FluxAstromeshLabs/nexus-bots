@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, Int128, Int256, StdError};
+use cosmwasm_std::{Binary, Coin, Int128, Int256, StdError, Uint256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -72,4 +72,16 @@ pub enum NexusAction {
         amount: Int128,
         min_profit: Option<Int128>,
     },
+}
+
+pub fn to_uint256(i: Int256) -> Uint256 {
+    Uint256::from_be_bytes(i.to_be_bytes())
+}
+
+pub fn to_int256(i: Uint256) -> Int256 {
+    Int256::from_be_bytes(i.to_be_bytes())
+}
+
+pub fn to_u128(i: Int256) -> u128 {
+    u128::from_be_bytes(i.to_be_bytes()[16..32].try_into().expect("must be u128"))
 }

@@ -61,7 +61,15 @@ pub mod astroport {
                 contract: "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts"
                     .to_string(),
             }),
-            _ => Err(StdError::not_found(pool_name)),
+            "eth-usdt" => Ok(PoolMeta {
+                contract: "lux1aakfpghcanxtc45gpqlx8j3rq0zcpyf49qmhm9mdjrfx036h4z5sdltq0m"
+                    .to_string(),
+            }),
+            "sol-usdt" => Ok(PoolMeta {
+                contract: "lux18v47nqmhvejx3vc498pantg8vr435xa0rt6x0m6kzhp6yuqmcp8s3z45es"
+                    .to_string(),
+            }),
+            _ => Err(StdError::generic_err(format!("astroport pair not found: {}", pool_name))),
         }
     }
 
@@ -131,12 +139,12 @@ pub mod astroport {
             if a_for_b {
                 (
                     self.denom_b.clone(),
-                    (self.b * x) * (bps - self.fee_rate) / ((self.a + x) * bps),
+                    (self.b * x * (bps - self.fee_rate)) / ((self.a + x) * bps)
                 )
             } else {
                 (
                     self.denom_a.clone(),
-                    (self.a * x) * (bps - self.fee_rate) / ((self.b + x) * bps),
+                    (self.a * x * (bps - self.fee_rate)) / ((self.b + x) * bps)
                 )
             }
         }
