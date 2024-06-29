@@ -250,7 +250,7 @@ pub mod raydium {
     pub fn keccak256(input: &[u8]) -> [u8; 32] {
         let mut hash = Keccak::v256();
         hash.update(input);
-        let mut output = [0u8; 32]; 
+        let mut output = [0u8; 32];
         hash.finalize(output.as_mut_slice());
         output
     }
@@ -335,7 +335,12 @@ pub mod raydium {
             let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
             let (_, sender_bz) = bech32::decode(swap.sender.as_str()).unwrap();
             let sender_svm_account: Pubkey =
-                Pubkey::from_slice(keccak256(&sender_bz.as_slice()).as_slice()).or_else(|e| Err(StdError::generic_err(format!("parse svm err: {}", e.to_string()))))?;
+                Pubkey::from_slice(keccak256(&sender_bz.as_slice()).as_slice()).or_else(|e| {
+                    Err(StdError::generic_err(format!(
+                        "parse svm err: {}",
+                        e.to_string()
+                    )))
+                })?;
             let input_denom = get_denom(&swap.denom);
             let (mut input_vault, mut output_vault) =
                 (accounts.token0_vault, accounts.token1_vault);
@@ -485,7 +490,10 @@ impl Pubkey {
 
     pub fn from_slice(bz: &[u8]) -> Result<Self, StdError> {
         if bz.len() != 32 {
-            return Err(StdError::generic_err(format!("pubkey must be 32 bytes: {}", bz.len())));
+            return Err(StdError::generic_err(format!(
+                "pubkey must be 32 bytes: {}",
+                bz.len()
+            )));
         }
 
         let mut pubkey: [u8; 32] = [0; 32];
@@ -497,7 +505,13 @@ impl Pubkey {
         let bz = bs58::decode(s.as_str())
             .into_vec()
             .or_else(|e| Err(StdError::generic_err(e.to_string())))?;
-        Pubkey::from_slice(bz.as_slice()).or_else(|e| Err(StdError::generic_err(format!("pubkey from string: {}: {}", s, e.to_string()))))
+        Pubkey::from_slice(bz.as_slice()).or_else(|e| {
+            Err(StdError::generic_err(format!(
+                "pubkey from string: {}: {}",
+                s,
+                e.to_string()
+            )))
+        })
     }
 
     pub fn find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)> {

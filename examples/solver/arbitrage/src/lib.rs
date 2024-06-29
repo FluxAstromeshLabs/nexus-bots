@@ -105,6 +105,20 @@ pub fn get_pair_output_denom(input_denom: &str, pair: &String) -> String {
                 "btc".to_string()
             }
         }
+        "eth-usdt" => {
+            if input_denom == "eth" {
+                "usdt".to_string()
+            } else {
+                "eth".to_string()
+            }
+        }
+        "sol-usdt" => {
+            if input_denom == "sol" {
+                "usdt".to_string()
+            } else {
+                "sol".to_string()
+            }
+        }
         _ => "".to_string(),
     }
 }
@@ -217,7 +231,10 @@ pub fn arbitrage(
     deps.api.debug(
         format!(
             "optimal x: {}, estimate optimal profit: {}, swap route: {} => {}",
-            optimal_x, profit, src_pool.dex_name(), dst_pool.dex_name(),
+            optimal_x,
+            profit,
+            src_pool.dex_name(),
+            dst_pool.dex_name(),
         )
         .as_str(),
     );
