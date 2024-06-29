@@ -41,6 +41,26 @@ pub mod raydium {
                 token1_vault: "UURmKznoUTh8Dt9wgyusq6u1ETuY8Zj79NFAtfQJ7HB".to_string(),
                 observer_state: "FXqXrt2xDrxg7J5wdXrTbB2hCGajSzXLvwvc4x3Uw7i".to_string(),
             }),
+            "eth-usdt" => Ok(PoolAccounts {
+                authority_account: "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL".to_string(),
+                amm_config_account: "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2".to_string(),
+                pool_state_account: "GASMVGvEguNjicG1UhaTiYDPib4geFQBXjtbqAG1HPLH".to_string(),
+                token0_mint: "7Smiqjum5Xd7sZYysWXuS4Qbws6Y1rUKjcxudFJsLGJc".to_string(),
+                token1_mint: "ErDYXZUZ9rpSSvdWvrsQwgh6K4BQeoY2CPyv1FeD1S9r".to_string(),
+                token0_vault: "CP9w46ipnMBBQP2Nqg8DceobmnTFeb9Pri5W2RX1CiSV".to_string(),
+                token1_vault: "DCJQyrGYeHWocMxpBBWCSJEgtMFZXgwMuXxZnkrHtuvW".to_string(),
+                observer_state: "aLPmyw8Zs6kivaeaysiA1CXyhKCngeUW1deStmbn7ri".to_string(),
+            }),
+            "sol-usdt" => Ok(PoolAccounts {
+                authority_account: "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL".to_string(),
+                amm_config_account: "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2".to_string(),
+                pool_state_account: "F5h7xu4VdUdY3LRxCWo8Jv6HcdVK4tNsnEwdhBHvQA9K".to_string(),
+                token0_mint: "1a5UtpbTcDiUPQcQ5tMSKQoLJXTzQRrjitQXxozn4ga".to_string(),
+                token1_mint: "ErDYXZUZ9rpSSvdWvrsQwgh6K4BQeoY2CPyv1FeD1S9r".to_string(),
+                token0_vault: "HNHWS8EqDH8GCW5XeL6dVirSRPcKEn5mZ7qUzvHWfizD".to_string(),
+                token1_vault: "6DY4BxWgdoNG557vXUif4A6AdMSSrR7RH4uarfBW7vb5".to_string(),
+                observer_state: "8rvsAHa9HztPWoioR8w6FR64VdS3TZCCmK52i1xCEJoF".to_string(),
+            }),
             name => Err(StdError::not_found(name)),
         }
     }
@@ -48,6 +68,8 @@ pub mod raydium {
     pub fn get_denom(denom: &String) -> String {
         match denom.as_str() {
             "btc" => "ENyus6yS21v95sreLKcVEA5Wjcyh8jg6w4jBFHzJaPox".to_string(),
+            "eth" => "7Smiqjum5Xd7sZYysWXuS4Qbws6Y1rUKjcxudFJsLGJc".to_string(),
+            "sol" => "1a5UtpbTcDiUPQcQ5tMSKQoLJXTzQRrjitQXxozn4ga".to_string(),
             "usdt" => "ErDYXZUZ9rpSSvdWvrsQwgh6K4BQeoY2CPyv1FeD1S9r".to_string(),
             _ => denom.clone(),
         }
@@ -271,7 +293,8 @@ pub mod raydium {
         pub fn from_fis(input: &FISInput) -> Result<Self, StdError> {
             let token_0_vault_account = Account::from_json_bytes(
                 input
-                    .data.first()
+                    .data
+                    .first()
                     .ok_or(StdError::not_found("expected account 0"))?,
             )?;
             let token_1_vault_account = Account::from_json_bytes(
@@ -334,10 +357,8 @@ pub mod raydium {
             let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
             let (_, sender_bz) = bech32::decode(swap.sender.as_str()).unwrap();
             let sender_svm_account: Pubkey =
-                Pubkey::from_slice(keccak256(sender_bz.as_slice()).as_slice()).map_err(|e| StdError::generic_err(format!(
-                        "parse svm err: {}",
-                        e
-                    )))?;
+                Pubkey::from_slice(keccak256(sender_bz.as_slice()).as_slice())
+                    .map_err(|e| StdError::generic_err(format!("parse svm err: {}", e)))?;
             let input_denom = get_denom(&swap.denom);
             let (mut input_vault, mut output_vault) =
                 (accounts.token0_vault, accounts.token1_vault);
@@ -500,12 +521,10 @@ impl Pubkey {
 
     pub fn from_string(s: &String) -> Result<Self, StdError> {
         let bz = bs58::decode(s.as_str())
-            .into_vec().map_err(|e| StdError::generic_err(e.to_string()))?;
-        Pubkey::from_slice(bz.as_slice()).map_err(|e| StdError::generic_err(format!(
-                "pubkey from string: {}: {}",
-                s,
-                e
-            )))
+            .into_vec()
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+        Pubkey::from_slice(bz.as_slice())
+            .map_err(|e| StdError::generic_err(format!("pubkey from string: {}: {}", s, e)))
     }
 
     pub fn find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)> {

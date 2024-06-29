@@ -85,10 +85,8 @@ pub fn to_u128(i: Int256) -> u128 {
 // contract: use x a1 to get b1
 // use a1 as a2 to get b2 => profit = output (b1) - input (b1)
 pub fn get_max_profit_point(a1: Int256, b1: Int256, a2: Int256, b2: Int256) -> Int256 {
-    
-    (to_int256(Isqrt::isqrt(to_uint256(a1 * b1)) * Isqrt::isqrt(to_uint256(a2 * b2)))
-            - a1 * b2)
-            / (b1 + b2)
+    (to_int256(Isqrt::isqrt(to_uint256(a1 * b1)) * Isqrt::isqrt(to_uint256(a2 * b2))) - a1 * b2)
+        / (b1 + b2)
 }
 
 pub fn get_pair_output_denom(input_denom: &str, pair: &String) -> String {
@@ -172,6 +170,16 @@ pub fn adjust_optimal_x(
     }
 }
 
+fn must_support(pair: &String) -> Result<(), StdError> {
+    if get_pair_output_denom("usdt", pair) == "" {
+        return Err(StdError::generic_err(
+            format!("unsupported pair: {}", pair).as_str(),
+        ));
+    };
+
+    Ok(())
+}
+
 pub fn arbitrage(
     deps: Deps,
     env: Env,
@@ -180,10 +188,11 @@ pub fn arbitrage(
     min_profit: Option<Int128>,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
-    deps.api
-        .debug(format!("fis_input: {:#?}", fis_input).as_str());
+    must_support(&pair)?;
+
     let raw_pools = [
-        fis_input.first()
+        fis_input
+            .first()
             .ok_or(StdError::generic_err("astroport pool data not found"))?,
         fis_input
             .get(1)
@@ -216,16 +225,18 @@ pub fn arbitrage(
     }
 
     let (src_pool, dst_pool) = (src_pool_opt.unwrap(), dst_pool_opt.unwrap());
+
     // calculate profit for target pool with ideal scenario (no pool fees)
     let optimal_x = get_max_profit_point(src_pool.a(), src_pool.b(), dst_pool.a(), dst_pool.b());
     let optimal_x = adjust_optimal_x(optimal_x, src_pool, dst_pool);
-    let (_, _, _, second_optimal_swap_output) =
+    let (_, first_swap_output, _, second_optimal_swap_output) =
         calculate_pools_output(src_pool, dst_pool, optimal_x);
     let profit = second_optimal_swap_output - optimal_x;
     deps.api.debug(
         format!(
-            "optimal x: {}, estimate optimal profit: {}, swap route: {} => {}",
+            "optimal x: {}, estimate first swap output: {}, estimate profit: {}, swap route: {} => {}",
             optimal_x,
+            first_swap_output,
             profit,
             src_pool.dex_name(),
             dst_pool.dex_name(),
@@ -233,13 +244,13 @@ pub fn arbitrage(
         .as_str(),
     );
 
-    let min_profit = if let Some(mp) = min_profit {
+    let expected_min_profit = if let Some(mp) = min_profit {
         Int256::from_i128(mp.i128())
     } else {
         Int256::zero()
     };
 
-    if optimal_x <= Int256::zero() || profit < min_profit {
+    if optimal_x <= Int256::zero() || profit < expected_min_profit {
         // do nothing if there is no profit or can't reach that amount
         return Ok(to_json_binary(&StrategyOutput {
             instructions: vec![],
@@ -247,7 +258,7 @@ pub fn arbitrage(
         .unwrap());
     }
 
-    // compose the swap
+    // compose the swaps
     let sender = env.contract.address.to_string();
     let src_swap = Swap {
         sender: sender.clone(),
@@ -277,6 +288,7 @@ pub fn arbitrage(
     // 2. transfer the swapped btc amount to dst pool
     // 3. swap the btc amount to usdt in dst pool
     // 4. transfer usdt back to src pool
+    // TODO: Discuss and decide if initial denom should come from cosmos
     let instructions = vec![
         src_pool.compose_swap_fis(&src_swap)?,
         astro_transfer(
