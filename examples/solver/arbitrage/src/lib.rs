@@ -12,10 +12,7 @@ use cosmwasm_std::{from_json, Isqrt, StdError};
 use std::cmp::min;
 use std::vec::Vec;
 use svm::raydium::RaydiumPool;
-use wasm::astroport::{AstroportPool};
-const UNISWAP: &str = "uniswap"; // to be supported
-
-const BPS: i128 = 1000000i128;
+use wasm::astroport::AstroportPool;
 
 #[cw_serde]
 pub struct InstantiateMsg {}

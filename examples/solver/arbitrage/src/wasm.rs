@@ -53,8 +53,6 @@ pub mod astroport {
 
     pub struct PoolMeta {
         contract: String,
-        token0_denom: String,
-        token1_denom: String,
     }
 
     pub fn get_pool_meta_by_name(pool_name: &String) -> Result<PoolMeta, StdError> {
@@ -62,8 +60,6 @@ pub mod astroport {
             "btc-usdt" => Ok(PoolMeta {
                 contract: "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts"
                     .to_string(),
-                token0_denom: "btc".to_string(),
-                token1_denom: "usdt".to_string(),
             }),
             _ => Err(StdError::not_found(pool_name)),
         }
