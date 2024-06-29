@@ -10,11 +10,9 @@ use cosmwasm_std::{
     MessageInfo, Response, StdResult, Uint128, Uint256,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
-use evm::uniswap;
 use std::cmp::min;
 use std::vec::Vec;
 use svm::raydium::RaydiumPool;
-use svm::{raydium, Account, TokenAccount};
 use wasm::astroport::{self, AssetInfo, AstroportPool};
 const UNISWAP: &str = "uniswap"; // to be supported
 
@@ -173,19 +171,21 @@ pub fn arbitrage(
     min_profit: Option<Int128>,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
+    deps.api
+        .debug(format!("fis_input: {:#?}", fis_input).as_str());
     let raw_pools = [
         fis_input
             .get(0)
-            .ok_or(StdError::not_found("astroport pool data"))?,
+            .ok_or(StdError::generic_err("astroport pool data not found"))?,
         fis_input
             .get(1)
-            .ok_or(StdError::not_found("raydium pool data"))?,
+            .ok_or(StdError::generic_err("raydium pool data not found"))?,
     ];
 
     // parse pools
     let parsed_pools: Vec<Box<dyn Pool>> = vec![
         Box::new(AstroportPool::from_fis(raw_pools[0])?),
-        Box::new(RaydiumPool::from_fis(raw_pools[0])?),
+        Box::new(RaydiumPool::from_fis(raw_pools[1])?),
     ];
 
     // detect best swap route, i.e
@@ -211,18 +211,24 @@ pub fn arbitrage(
     // calculate profit for target pool with ideal scenario (no pool fees)
     let optimal_x = get_max_profit_point(src_pool.a(), src_pool.b(), dst_pool.a(), dst_pool.b());
     let optimal_x = adjust_optimal_x(optimal_x, src_pool, dst_pool);
-    let (first_output_denom, _, _, second_optimal_swap_output) =
+    let (_, _, _, second_optimal_swap_output) =
         calculate_pools_output(src_pool, dst_pool, optimal_x);
     let profit = second_optimal_swap_output - optimal_x;
     deps.api.debug(
         format!(
-            "optimal x: {}, estimate optimal profit: {}",
-            optimal_x, profit,
+            "optimal x: {}, estimate optimal profit: {}, swap route: {} => {}",
+            optimal_x, profit, src_pool.dex_name(), dst_pool.dex_name(),
         )
         .as_str(),
     );
 
-    if optimal_x <= Int256::zero() || profit <= Int256::zero() {
+    let min_profit = if let Some(mp) = min_profit {
+        Int256::from_i128(mp.i128())
+    } else {
+        Int256::zero()
+    };
+
+    if optimal_x <= Int256::zero() || profit < min_profit {
         // do nothing if there is no profit or can't reach that amount
         return Ok(to_json_binary(&StrategyOutput {
             instructions: vec![],

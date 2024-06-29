@@ -68,7 +68,7 @@ pub struct FISInstruction {
 #[cw_serde]
 pub enum NexusAction {
     Arbitrage {
-        pair: String, // 3 pools needed and only need usdt amount, usdt => X => usdt
+        pair: String, // supported 3 pools and only need usdt amount, usdt => X => usdt
         amount: Int128,
         min_profit: Option<Int128>,
     },

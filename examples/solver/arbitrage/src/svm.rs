@@ -14,6 +14,7 @@ pub mod raydium {
     pub const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     pub const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
     pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+    pub const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
     pub const BPS: i128 = 1000000i128;
 
     #[derive(Clone)]
@@ -33,9 +34,9 @@ pub mod raydium {
             "btc-usdt" => Ok(PoolAccounts {
                 authority_account: "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL".to_string(),
                 amm_config_account: "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2".to_string(),
-                pool_state_account: "5qUshuBSTpuMu5c1C1Fxq8uJ7Emhn9AAtQwVJfEXAPmy".to_string(),
-                token0_mint: "9kWnPUAkspGW6qGPPah1aAdH316nkiJhow5neRs5YDej".to_string(),
-                token1_mint: "HwkqUQaXocRwNLGX2qKmC3Sk4uTVxmzmCEAEHDwSj4KQ".to_string(),
+                pool_state_account: "HUtjobntUDzrsq1k7xLM6SLzuZyUvr2U8skA8SUWevFd".to_string(),
+                token0_mint: "ENyus6yS21v95sreLKcVEA5Wjcyh8jg6w4jBFHzJaPox".to_string(),
+                token1_mint: "ErDYXZUZ9rpSSvdWvrsQwgh6K4BQeoY2CPyv1FeD1S9r".to_string(),
                 token0_vault: "9U5Lpfmc6u1rCRAfzGe883KnK5Avm76zX4te6sexvCEk".to_string(),
                 token1_vault: "UURmKznoUTh8Dt9wgyusq6u1ETuY8Zj79NFAtfQJ7HB".to_string(),
                 observer_state: "FXqXrt2xDrxg7J5wdXrTbB2hCGajSzXLvwvc4x3Uw7i".to_string(),
@@ -46,8 +47,8 @@ pub mod raydium {
 
     pub fn get_denom(denom: &String) -> String {
         match denom.as_str() {
-            "btc" => "9kWnPUAkspGW6qGPPah1aAdH316nkiJhow5neRs5YDej".to_string(),
-            "usdt" => "HwkqUQaXocRwNLGX2qKmC3Sk4uTVxmzmCEAEHDwSj4KQ".to_string(),
+            "btc" => "ENyus6yS21v95sreLKcVEA5Wjcyh8jg6w4jBFHzJaPox".to_string(),
+            "usdt" => "ErDYXZUZ9rpSSvdWvrsQwgh6K4BQeoY2CPyv1FeD1S9r".to_string(),
             _ => denom.clone(),
         }
     }
@@ -82,121 +83,174 @@ pub mod raydium {
             output_token_mint,
             observer_state,
             CPMM_PROGRAM_ID.to_string(),
+            SYSTEM_PROGRAM_ID.to_string(),
+            ASSOCIATED_TOKEN_PROGRAM_ID.to_string(),
         ];
 
-        let mut data_bz: Vec<u8> = vec![143, 190, 90, 218, 196, 30, 51, 222];
+        // This instruction is idempotent, cost less fee when account exists
+        let create_output_ata_ix = Instruction {
+            program_index: vec![14],
+            accounts: vec![
+                InstructionAccount {
+                    id_index: 0,
+                    caller_index: 0,
+                    callee_index: 0,
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccount {
+                    id_index: 5,
+                    caller_index: 5,
+                    callee_index: 1,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccount {
+                    id_index: 0,
+                    caller_index: 0,
+                    callee_index: 0,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 10,
+                    caller_index: 10,
+                    callee_index: 3,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 13,
+                    caller_index: 13,
+                    callee_index: 4,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 8,
+                    caller_index: 8,
+                    callee_index: 5,
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ],
+            data: Binary::new(vec![1]), // 1 = CreateIdempotent instruction
+        };
+
+        let mut data_bz: Vec<u8> = vec![143, 190, 90, 218, 196, 30, 51, 222]; // swap_base_input ix signature
         data_bz.extend(amount_in.to_le_bytes());
         data_bz.extend(min_amount_out.to_le_bytes());
 
+        let swap_ix = Instruction {
+            program_index: vec![12],
+            accounts: vec![
+                InstructionAccount {
+                    id_index: 0,
+                    caller_index: 0,
+                    callee_index: 0,
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccount {
+                    id_index: 1,
+                    caller_index: 1,
+                    callee_index: 1,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 2,
+                    caller_index: 2,
+                    callee_index: 2,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 3,
+                    caller_index: 3,
+                    callee_index: 3,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccount {
+                    id_index: 4,
+                    caller_index: 4,
+                    callee_index: 4,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccount {
+                    id_index: 5,
+                    caller_index: 5,
+                    callee_index: 5,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccount {
+                    id_index: 6,
+                    caller_index: 6,
+                    callee_index: 6,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccount {
+                    id_index: 7,
+                    caller_index: 7,
+                    callee_index: 7,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccount {
+                    id_index: 8,
+                    caller_index: 8,
+                    callee_index: 8,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 8,
+                    caller_index: 8,
+                    callee_index: 8,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 9,
+                    caller_index: 9,
+                    callee_index: 10,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 10,
+                    caller_index: 10,
+                    callee_index: 11,
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccount {
+                    id_index: 11,
+                    caller_index: 11,
+                    callee_index: 12,
+                    is_signer: false,
+                    is_writable: true,
+                },
+            ],
+            data: Binary::from(data_bz),
+        };
+
         MsgTransaction {
-            // ty: "flux.svm.v1beta1.MsgTransaction".to_string(),
             sender,
             accounts,
-            instructions: vec![Instruction {
-                program_index: vec![12],
-                accounts: vec![
-                    InstructionAccount {
-                        id_index: 0,
-                        caller_index: 0,
-                        callee_index: 0,
-                        is_signer: true,
-                        is_writable: true,
-                    },
-                    InstructionAccount {
-                        id_index: 1,
-                        caller_index: 1,
-                        callee_index: 1,
-                        is_signer: false,
-                        is_writable: false,
-                    },
-                    InstructionAccount {
-                        id_index: 2,
-                        caller_index: 2,
-                        callee_index: 2,
-                        is_signer: false,
-                        is_writable: false,
-                    },
-                    InstructionAccount {
-                        id_index: 3,
-                        caller_index: 3,
-                        callee_index: 3,
-                        is_signer: false,
-                        is_writable: true,
-                    },
-                    InstructionAccount {
-                        id_index: 4,
-                        caller_index: 4,
-                        callee_index: 4,
-                        is_signer: false,
-                        is_writable: true,
-                    },
-                    InstructionAccount {
-                        id_index: 5,
-                        caller_index: 5,
-                        callee_index: 5,
-                        is_signer: false,
-                        is_writable: true,
-                    },
-                    InstructionAccount {
-                        id_index: 6,
-                        caller_index: 6,
-                        callee_index: 6,
-                        is_signer: false,
-                        is_writable: true,
-                    },
-                    InstructionAccount {
-                        id_index: 7,
-                        caller_index: 7,
-                        callee_index: 7,
-                        is_signer: false,
-                        is_writable: true,
-                    },
-                    InstructionAccount {
-                        id_index: 8,
-                        caller_index: 8,
-                        callee_index: 8,
-                        is_signer: false,
-                        is_writable: false,
-                    },
-                    InstructionAccount {
-                        id_index: 8,
-                        caller_index: 8,
-                        callee_index: 8,
-                        is_signer: false,
-                        is_writable: false,
-                    },
-                    InstructionAccount {
-                        id_index: 9,
-                        caller_index: 9,
-                        callee_index: 10,
-                        is_signer: false,
-                        is_writable: false,
-                    },
-                    InstructionAccount {
-                        id_index: 10,
-                        caller_index: 10,
-                        callee_index: 11,
-                        is_signer: false,
-                        is_writable: false,
-                    },
-                    InstructionAccount {
-                        id_index: 11,
-                        caller_index: 11,
-                        callee_index: 12,
-                        is_signer: false,
-                        is_writable: true,
-                    },
-                ],
-                data: Binary::from(data_bz),
-            }],
+            instructions: vec![create_output_ata_ix, swap_ix],
             compute_budget: 10_000_000,
         }
     }
 
-    fn keccak256(input: &[u8]) -> Vec<u8> {
+    pub fn keccak256(input: &[u8]) -> [u8; 32] {
         let mut hash = Keccak::v256();
         hash.update(input);
-        let mut output = Vec::with_capacity(32);
+        let mut output = [0u8; 32]; 
         hash.finalize(output.as_mut_slice());
         output
     }
@@ -227,13 +281,14 @@ pub mod raydium {
                     .get(1)
                     .ok_or(StdError::not_found("expected account 1"))?,
             )?;
-            let token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
-            let token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
+            let mut token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
+            let mut token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
             // TODO: more constraint as validate basic
             let (mut a, mut b) = (token_0_info.amount, token_1_info.amount);
             // we always swap from usdt so let it be the first
             if token_0_info.mint.to_string() != get_denom(&"usdt".to_string()) {
-                (a, b) = (b, a)
+                (a, b) = (b, a);
+                (token_0_info, token_1_info) = (token_1_info, token_0_info)
             }
 
             Ok(Self {
@@ -277,11 +332,10 @@ pub mod raydium {
         }
 
         fn compose_swap_fis(&self, swap: &Swap) -> Result<FISInstruction, StdError> {
-            // let accounts = swap.raydium_accounts.unwrap();
             let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
             let (_, sender_bz) = bech32::decode(swap.sender.as_str()).unwrap();
             let sender_svm_account: Pubkey =
-                Pubkey::from_slice(keccak256(&sender_bz.as_slice()).as_slice())?;
+                Pubkey::from_slice(keccak256(&sender_bz.as_slice()).as_slice()).or_else(|e| Err(StdError::generic_err(format!("parse svm err: {}", e.to_string()))))?;
             let input_denom = get_denom(&swap.denom);
             let (mut input_vault, mut output_vault) =
                 (accounts.token0_vault, accounts.token1_vault);
@@ -431,7 +485,7 @@ impl Pubkey {
 
     pub fn from_slice(bz: &[u8]) -> Result<Self, StdError> {
         if bz.len() != 32 {
-            return Err(StdError::generic_err("pubkey must be 32 bytes"));
+            return Err(StdError::generic_err(format!("pubkey must be 32 bytes: {}", bz.len())));
         }
 
         let mut pubkey: [u8; 32] = [0; 32];
@@ -443,7 +497,7 @@ impl Pubkey {
         let bz = bs58::decode(s.as_str())
             .into_vec()
             .or_else(|e| Err(StdError::generic_err(e.to_string())))?;
-        Pubkey::from_slice(bz.as_slice())
+        Pubkey::from_slice(bz.as_slice()).or_else(|e| Err(StdError::generic_err(format!("pubkey from string: {}: {}", s, e.to_string()))))
     }
 
     pub fn find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)> {
@@ -499,8 +553,6 @@ pub struct TokenAccount {
     pub owner: Pubkey,
     pub amount: u64,
 }
-
-// "getrandom" dep
 
 impl TokenAccount {
     pub fn unpack(bz: &[u8]) -> Result<TokenAccount, StdError> {
