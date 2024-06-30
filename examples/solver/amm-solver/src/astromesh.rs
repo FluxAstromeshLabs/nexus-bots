@@ -2,6 +2,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, Coin, Int128, Int256, StdError, Uint256};
 use serde::{Deserialize, Serialize};
 
+pub const ETH_DECIMAL_DIFF: u128 = 1_000_000_000u128;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgAstroTransfer {
     #[serde(rename = "@type")]

@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub mod raydium {
-    use crate::astromesh::{FISInput, FISInstruction, Pool, Swap};
+    use crate::astromesh::{FISInput, FISInstruction, Pool, Swap, ETH_DECIMAL_DIFF};
     use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::{to_json_vec, Binary, Int256, StdError};
+    use cosmwasm_std::{to_json_vec, Binary, Int128, Int256, StdError};
     use tiny_keccak::{Hasher, Keccak};
 
-    use super::{Account, Instruction, InstructionAccount, MsgTransaction, Pubkey, TokenAccount};
+    use super::{get_denom, Account, Instruction, InstructionAccount, MsgTransaction, PoolState, Pubkey, TokenAccount};
 
     pub const RAYDIUM: &str = "raydium";
     pub const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -62,16 +62,6 @@ pub mod raydium {
                 observer_state: "8rvsAHa9HztPWoioR8w6FR64VdS3TZCCmK52i1xCEJoF".to_string(),
             }),
             name => Err(StdError::generic_err(format!("raydium pair not found: {}", name))),
-        }
-    }
-
-    pub fn get_denom(denom: &String) -> String {
-        match denom.as_str() {
-            "btc" => "ENyus6yS21v95sreLKcVEA5Wjcyh8jg6w4jBFHzJaPox".to_string(),
-            "eth" => "7Smiqjum5Xd7sZYysWXuS4Qbws6Y1rUKjcxudFJsLGJc".to_string(),
-            "sol" => "1a5UtpbTcDiUPQcQ5tMSKQoLJXTzQRrjitQXxozn4ga".to_string(),
-            "usdt" => "ErDYXZUZ9rpSSvdWvrsQwgh6K4BQeoY2CPyv1FeD1S9r".to_string(),
-            _ => denom.clone(),
         }
     }
 
@@ -303,21 +293,43 @@ pub mod raydium {
                     .get(1)
                     .ok_or(StdError::generic_err("expected account 1"))?,
             )?;
+            let pool_state = Account::from_json_bytes(
+                input
+                    .data
+                    .get(2)
+                    .ok_or(StdError::generic_err("expected account 2"))?,
+            )?;
+            
             let mut token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
             let mut token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
+            let mut pool_state_info = PoolState::unpack(pool_state.data.as_slice())?;
+
+            // let (mut protocol_fees_token_0, mut protocol_fees_token_1, mut fund_fees_token_0, mut fund_fees_token_1)
             // TODO: more constraint as validate basic
             let (mut a, mut b) = (token_0_info.amount, token_1_info.amount);
             // we always swap from usdt so let it be the first
-            if token_0_info.mint.to_string() != get_denom(&"usdt".to_string()) {
+            if token_0_info.mint.to_string() != get_denom("usdt") {
                 (a, b) = (b, a);
-                (token_0_info, token_1_info) = (token_1_info, token_0_info)
+                (token_0_info, token_1_info) = (token_1_info, token_0_info);
+                (pool_state_info.protocol_fees_token_0, pool_state_info.protocol_fees_token_1) = (pool_state_info.protocol_fees_token_1, pool_state_info.protocol_fees_token_0);
+                (pool_state_info.fund_fees_token_0, pool_state_info.fund_fees_token_1) = (pool_state_info.fund_fees_token_1, pool_state_info.fund_fees_token_0);
+            }
+
+            a = a - (pool_state_info.protocol_fees_token_0 + pool_state_info.fund_fees_token_0);
+            b = b - (pool_state_info.protocol_fees_token_1 + pool_state_info.fund_fees_token_1);
+
+            // hack: ETH, it's 18 decimals on cosmos/wasm/evm => need to convert the eth amount from 9 decimals to 18 decimals
+            // hardcode for now, should use denom link later on
+            let mut decimal_multiplier = Int256::one();
+            if &token_1_info.mint.to_string() == &get_denom("eth") {
+                decimal_multiplier = Int256::from_i128(1_000_000_000i128);
             }
 
             Ok(Self {
                 dex_name: RAYDIUM.to_string(),
                 denom_plane: "SVM".to_string(),
                 a: Int256::from_i128(a as i128),
-                b: Int256::from_i128(b as i128),
+                b: Int256::from_i128(b as i128) * decimal_multiplier,
                 fee_rate: Int256::from(1000i128),
                 denom_a: token_0_info.mint.to_string(),
                 denom_b: token_1_info.mint.to_string(),
@@ -344,12 +356,28 @@ pub mod raydium {
 
         fn swap_output(&self, x: Int256, a_for_b: bool) -> (String, Int256) {
             let bps = Int256::from_i128(BPS);
-            let x = x * (bps - self.fee_rate) / bps;
+            let mut x = x * (bps - self.fee_rate) / bps;
+            let a = self.a;
+            let b = self.b;
 
             if a_for_b {
-                (self.denom_b.clone(), (self.b * x) / (self.a + x))
+                let denom = self.denom_b.clone();
+                let mut output_amount = (b * x) / (a + x);
+
+                // rounding down for ETH so that it could be transferred out
+                if &self.denom_b == &get_denom("eth") {
+                    let decimal_diff = Int256::from_i128(ETH_DECIMAL_DIFF as i128);
+                    output_amount = (output_amount / decimal_diff) * decimal_diff;
+                }
+                (denom, output_amount)
             } else {
-                (self.denom_a.clone(), (self.a * x) / (self.b + x))
+                // rounding down for ETH so that it match the transferred in amount
+                if &self.denom_b == &get_denom("eth") {
+                    let decimal_diff = Int256::from_i128(ETH_DECIMAL_DIFF as i128);
+                    x = (x / decimal_diff) * decimal_diff;
+                }
+
+                (self.denom_a.clone(), (a * x) / (b + x))
             }
         }
 
@@ -360,6 +388,11 @@ pub mod raydium {
                 Pubkey::from_slice(keccak256(sender_bz.as_slice()).as_slice())
                     .map_err(|e| StdError::generic_err(format!("parse svm err: {}", e)))?;
             let input_denom = get_denom(&swap.denom);
+            let mut amount = swap.amount;
+            if input_denom == get_denom("eth") {
+                amount = amount / Int128::from(ETH_DECIMAL_DIFF as i128)
+            }
+
             let (mut input_vault, mut output_vault) =
                 (accounts.token0_vault, accounts.token1_vault);
             if &input_denom == &accounts.token1_mint {
@@ -390,7 +423,7 @@ pub mod raydium {
 
             let msg = swap_base_input(
                 swap.sender.clone(),
-                swap.amount.i128() as u64,
+                amount.i128() as u64,
                 0,
                 sender_svm_account.to_string(),
                 // sender_svm_account.to_string(),
@@ -591,6 +624,48 @@ impl TokenAccount {
             mint: Pubkey::from_slice(&bz[0..32])?,
             owner: Pubkey::from_slice(&bz[32..64])?,
             amount: u64::from_le_bytes(bz[64..72].try_into().unwrap()), // we know for sure it's 8 bytes => unwrap() is safe
+        })
+    }
+}
+
+pub fn get_denom(denom: &str) -> String {
+    match denom {
+        "btc" => "ENyus6yS21v95sreLKcVEA5Wjcyh8jg6w4jBFHzJaPox".to_string(),
+        "eth" => "7Smiqjum5Xd7sZYysWXuS4Qbws6Y1rUKjcxudFJsLGJc".to_string(),
+        "sol" => "1a5UtpbTcDiUPQcQ5tMSKQoLJXTzQRrjitQXxozn4ga".to_string(),
+        "usdt" => "ErDYXZUZ9rpSSvdWvrsQwgh6K4BQeoY2CPyv1FeD1S9r".to_string(),
+        _ => denom.to_string(),
+    }
+}
+
+// Simplified version of poolstate
+#[derive(Debug)]
+pub struct PoolState {
+    // additional information goes here
+    pub protocol_fees_token_0: u64,
+    pub protocol_fees_token_1: u64,
+    pub fund_fees_token_0: u64,
+    pub fund_fees_token_1: u64,
+}
+
+impl PoolState {
+    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 6 + 8 * 32;
+
+    pub fn unpack(bz: &[u8]) -> Result<PoolState, StdError> {
+        if bz.len() != Self::LEN {
+            return Err(StdError::generic_err(format!("pool state account must size must >= {} bytes, current len: {}", Self::LEN, bz.len())));
+        }
+
+        let protocol_fees_token_0 = u64::from_le_bytes(bz[341..349].try_into().unwrap());
+        let protocol_fees_token_1 = u64::from_le_bytes(bz[349..357].try_into().unwrap());
+        let fund_fees_token_0 = u64::from_le_bytes(bz[357..365].try_into().unwrap());
+        let fund_fees_token_1 = u64::from_le_bytes(bz[365..373].try_into().unwrap());
+        
+        Ok(PoolState {
+            protocol_fees_token_0,
+            protocol_fees_token_1,
+            fund_fees_token_0,
+            fund_fees_token_1,
         })
     }
 }
