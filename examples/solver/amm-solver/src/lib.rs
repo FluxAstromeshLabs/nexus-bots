@@ -217,7 +217,6 @@ pub fn arbitrage(
         // trick: use multiplier to get over usdt and other denom's decimal
         // it's fine to compare the ratios with same multiplier 
         let rate = parsed_pools[i].a() * multiplier / parsed_pools[i].b();
-        deps.api.debug(format!("dex: {}, a: {}, b: {}, rate: {}", parsed_pools[i].dex_name(), parsed_pools[i].a(), parsed_pools[i].b(), rate.to_string()).as_str());
         if lowest_rate > rate {
             src_pool_opt = Some(&parsed_pools[i]);
             lowest_rate = rate
