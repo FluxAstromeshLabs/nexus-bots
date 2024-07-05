@@ -105,8 +105,8 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             from_json::<EventContractDeployed>(m).unwrap()
         })
         .collect();
+    
     let command = from_json::<Command>(msg.msg)?;
-    // parse command, we can store it as proto bytes, encrypted binary
     let instructions = events
         .iter()
         .map(|e| FISInstruction {
