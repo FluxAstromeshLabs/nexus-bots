@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Uint128,
+    entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, Int64, MessageInfo, Response, StdResult, Uint128
 };
 use std::vec::Vec;
 
@@ -32,7 +31,12 @@ pub struct Command {
 #[cw_serde]
 pub struct ContractInfo {
     address: String,
+    bytecode: Binary,
+    hash: Binary,
     sender: String,
+    calldata: Binary,
+    value: Binary,
+    number: Int64,
 }
 
 #[cw_serde]
@@ -91,12 +95,19 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 
     // parse cron input
-    let event_input = from_json::<Vec<EventContractDeployed>>(
-        msg.fis_input.get(0).unwrap().data.get(0).unwrap(),
-    )?;
+    let events: Vec<EventContractDeployed> = msg
+        .fis_input
+        .get(0)
+        .unwrap()
+        .data
+        .iter()
+        .map(|m| {
+            from_json::<EventContractDeployed>(m).unwrap()
+        })
+        .collect();
     let command = from_json::<Command>(msg.msg)?;
     // parse command, we can store it as proto bytes, encrypted binary
-    let instructions = event_input
+    let instructions = events
         .iter()
         .map(|e| FISInstruction {
             plane: "COSMOS".to_string(),

@@ -14,17 +14,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bank-event-based"
-version = "0.0.1"
-dependencies = [
- "bech32 0.11.0",
- "cosmwasm-schema",
- "cosmwasm-std",
- "schemars",
- "serde",
-]
-
-[[package]]
 name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -302,6 +291,17 @@ dependencies = [
  "sec1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "evm-deploy-watcher"
+version = "0.0.1"
+dependencies = [
+ "bech32 0.11.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
