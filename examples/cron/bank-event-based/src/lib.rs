@@ -1,7 +1,7 @@
-use bech32::{Bech32m, Hrp};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, Uint256
+    entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, Uint128,
 };
 use std::vec::Vec;
 
@@ -24,29 +24,20 @@ pub struct FisInput {
 
 #[cw_serde]
 pub struct Command {
-    receiver: String,
     denom: String,
-    amount: String,
+    amount: Uint128,
+}
+
+// simplified contract info
+#[cw_serde]
+pub struct ContractInfo {
+    address: String,
+    sender: String,
 }
 
 #[cw_serde]
-pub struct Balance {
-    acc: Binary,
-    balance: Uint128,
-}
-
-#[cw_serde]
-pub struct DenomUpdate {
-    denom: String,
-    balances: Vec<Balance>,
-}
-
-#[cw_serde]
-pub struct BankBalanceUpdate {
-    ty: String, // bank event type
-    upd: Vec<DenomUpdate>,
-    plane: String,
-    mode: String,
+pub struct EventContractDeployed {
+    contract: ContractInfo,
 }
 
 #[cw_serde]
@@ -66,13 +57,7 @@ pub struct StrategyOutput {
 pub struct MsgSend {
     from_address: String,
     to_address: String,
-    amount: Vec<BankAmount>,
-}
-
-#[cw_serde]
-pub struct BankAmount {
-    denom: String,
-    amount: String,
+    amount: Vec<Coin>,
 }
 
 #[entry_point]
@@ -97,51 +82,38 @@ pub fn execute(
 
 #[entry_point]
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    // parse cron input
-    let event_input =
-        from_json::<BankBalanceUpdate>(msg.fis_input.get(0).unwrap().data.get(0).unwrap())?;
-    let command = from_json::<Command>(msg.msg)?;
-
-    let mut receiver_balance = Option::<Uint128>::None;
-    event_input.upd.iter().for_each(|e| {
-        if e.denom == command.denom {
-            e.balances.iter().for_each(|b| {
-                if bech32::encode::<Bech32m>(Hrp::parse("lux").unwrap(), b.acc.as_slice()).unwrap()
-                    == command.receiver
-                {
-                    receiver_balance = Some(b.balance);
-                }
-            })
-        }
-    });
-
-    if receiver_balance.is_none() {
+    // no event => do nothing
+    if msg.fis_input.len() == 0 || msg.fis_input.get(0).unwrap().data.len() == 0 {
         return Ok(to_json_binary(&StrategyOutput {
             instructions: vec![],
         })
         .unwrap());
     }
 
+    // parse cron input
+    let event_input = from_json::<Vec<EventContractDeployed>>(
+        msg.fis_input.get(0).unwrap().data.get(0).unwrap(),
+    )?;
+    let command = from_json::<Command>(msg.msg)?;
     // parse command, we can store it as proto bytes, encrypted binary
-    let mut instructions = vec![];
-    let balance = receiver_balance.unwrap();
-    if balance.u128() % 2 == 0 {
-        instructions.push(FISInstruction {
+    let instructions = event_input
+        .iter()
+        .map(|e| FISInstruction {
             plane: "COSMOS".to_string(),
             action: "COSMOS_BANK_SEND".to_string(),
             address: "".to_string(),
             msg: to_json_binary(&MsgSend {
                 from_address: env.contract.address.clone().into_string(),
-                to_address: command.receiver.to_string(),
-                amount: vec![BankAmount {
+                to_address: e.contract.sender.clone(),
+                amount: vec![Coin {
                     denom: command.denom.to_string(),
-                    amount: command.amount.to_string(),
+                    amount: command.amount,
                 }],
             })
             .unwrap()
             .to_vec(),
-        });
-    
-    }
+        })
+        .collect();
+
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
