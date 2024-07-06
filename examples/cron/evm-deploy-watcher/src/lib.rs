@@ -34,8 +34,8 @@ pub struct ContractInfo {
     bytecode: Binary,
     hash: Binary,
     sender: String,
-    calldata: Binary,
-    value: Binary,
+    calldata: Option<Binary>,
+    value: Option<Binary>,
     number: Int64,
 }
 
