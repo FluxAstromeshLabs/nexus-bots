@@ -1,4 +1,5 @@
 pub mod astromesh;
+pub mod evm;
 pub mod svm;
 pub mod test;
 pub mod wasm;
