@@ -32,7 +32,9 @@ pub struct FISInstruction {
 
 #[cw_serde]
 pub enum AbstractionObject {
-    WithdrawAllPlane {},
+    WithdrawAllPlane {
+        denom: String,
+    },
     DepositEqually {
         denom: String,
         amount: Uint256,
@@ -93,7 +95,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let fis_input = &msg.fis_input.get(0).unwrap().data;
 
     let instructions = match abs_obj {
-        AbstractionObject::WithdrawAllPlane { } => {
+        AbstractionObject::WithdrawAllPlane { .. } => {
             let address = env.contract.address;
             // get wasm, evm, svm balances in order
             let wasm_balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();

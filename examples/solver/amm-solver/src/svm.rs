@@ -280,6 +280,22 @@ pub mod raydium {
     }
 
     impl RaydiumPool {
+        pub fn new(pair: &str) -> Result<RaydiumPool, StdError> {
+            // Fetch pool accounts using the provided pair name
+            let pool_accounts = get_pool_accounts_by_name(&pair.to_string())?;
+    
+            // Create and return the RaydiumPool struct with amounts set to zero and denominations extracted from pair
+            Ok(RaydiumPool {
+                dex_name: RAYDIUM.to_string(),
+                denom_plane: "SVM".to_string(),
+                a: Int256::zero(),
+                b: Int256::zero(),
+                fee_rate: Int256::from(1000i128),
+                denom_a: pool_accounts.token0_mint,
+                denom_b: pool_accounts.token1_mint,
+            })
+        }
+
         pub fn from_fis(input: &FISInput) -> Result<Self, StdError> {
             let token_0_vault_account = Account::from_json_bytes(
                 input

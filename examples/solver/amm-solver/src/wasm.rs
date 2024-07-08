@@ -53,24 +53,29 @@ pub mod astroport {
 
     pub struct PoolMeta {
         contract: String,
+        denom_a: String,
+        denom_b: String,
     }
 
     pub fn get_pool_meta_by_name(pool_name: &String) -> Result<PoolMeta, StdError> {
-        match pool_name.as_str() {
-            "btc-usdt" => Ok(PoolMeta {
-                contract: "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts"
-                    .to_string(),
-            }),
-            "eth-usdt" => Ok(PoolMeta {
-                contract: "lux1aakfpghcanxtc45gpqlx8j3rq0zcpyf49qmhm9mdjrfx036h4z5sdltq0m"
-                    .to_string(),
-            }),
-            "sol-usdt" => Ok(PoolMeta {
-                contract: "lux18v47nqmhvejx3vc498pantg8vr435xa0rt6x0m6kzhp6yuqmcp8s3z45es"
-                    .to_string(),
-            }),
-            _ => Err(StdError::generic_err(format!("astroport pair not found: {}", pool_name))),
+        let contract = match pool_name.as_str() {
+            "btc-usdt" => "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts".to_string(),
+            "eth-usdt" => "lux1aakfpghcanxtc45gpqlx8j3rq0zcpyf49qmhm9mdjrfx036h4z5sdltq0m".to_string(),
+            "sol-usdt" => "lux18v47nqmhvejx3vc498pantg8vr435xa0rt6x0m6kzhp6yuqmcp8s3z45es".to_string(),
+            _ => return Err(StdError::generic_err(format!("astroport pair not found: {}", pool_name))),
+        };
+    
+        // Split the pair to extract denom_a and denom_b
+        let denoms: Vec<&str> = pool_name.split('-').collect();
+        if denoms.len() != 2 {
+            return Err(StdError::generic_err(format!("invalid pair format: {}", pool_name)));
         }
+    
+        Ok(PoolMeta {
+            contract,
+            denom_a: denoms[0].to_string(),
+            denom_b: denoms[1].to_string(),
+        })
     }
 
     #[cw_serde]
@@ -86,6 +91,20 @@ pub mod astroport {
     }
 
     impl AstroportPool {
+        pub fn new(pair: &str) -> Result<Self, StdError> {    
+            // Create and return the AstroportPool struct with amounts set to zero and denominations empty
+            let pool_meta = get_pool_meta_by_name(&pair.to_string())?;
+            Ok(AstroportPool {
+                dex_name: ASTROPORT.to_string(),
+                denom_plane: "COSMOS".to_string(),
+                a: Int256::zero(),
+                b: Int256::zero(),
+                fee_rate: Int256::from(1000i128),
+                denom_a: pool_meta.denom_a,
+                denom_b: pool_meta.denom_b,
+            })
+        }
+
         pub fn from_fis(input: &FISInput) -> Result<Self, StdError> {
             let pool_info = from_json::<PoolResponse>(input.data.first().unwrap())?;
             let asset_0 = pool_info.assets.first().unwrap();
