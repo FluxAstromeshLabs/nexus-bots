@@ -3,18 +3,22 @@ pub mod evm;
 pub mod svm;
 pub mod test;
 pub mod wasm;
-use astromesh::{to_int256, to_u128, to_uint256, FISInput, FISInstruction, MsgAstroTransfer, NexusAction, Pool, Swap, ETH_DECIMAL_DIFF};
+use astromesh::{
+    to_int256, to_u128, to_uint256, FISInput, FISInstruction, MsgAstroTransfer, NexusAction, Pool,
+    Swap, ETH_DECIMAL_DIFF,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, Int256,
-    MessageInfo, Response, StdResult, Uint128, Uint256,
+    MessageInfo, Response, StdResult, Uint128,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
-use svm::get_denom;
+use evm::uniswap::{UniswapPool, UNISWAP};
 use std::cmp::min;
 use std::vec::Vec;
-use svm::raydium::{self, RaydiumPool};
-use wasm::astroport::AstroportPool;
+use svm::get_denom;
+use svm::raydium::{RaydiumPool, RAYDIUM};
+use wasm::astroport::{AstroportPool, ASTROPORT};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -180,6 +184,7 @@ fn must_support(pair: &String) -> Result<(), StdError> {
     Ok(())
 }
 
+// Arbitrage supports astroport + raydium for now
 pub fn arbitrage(
     deps: Deps,
     env: Env,
@@ -205,8 +210,20 @@ pub fn arbitrage(
         Box::new(RaydiumPool::from_fis(raw_pools[1])?),
     ];
 
-    deps.api.debug(format!("parsed pools 0: {:#?}", AstroportPool::from_fis(raw_pools[0])?).as_str());
-    deps.api.debug(format!("parsed pools 1: {:#?}", RaydiumPool::from_fis(raw_pools[1])?).as_str());
+    deps.api.debug(
+        format!(
+            "parsed pools 0: {:#?}",
+            AstroportPool::from_fis(raw_pools[0])?
+        )
+        .as_str(),
+    );
+    deps.api.debug(
+        format!(
+            "parsed pools 1: {:#?}",
+            RaydiumPool::from_fis(raw_pools[1])?
+        )
+        .as_str(),
+    );
     // detect best swap route, i.e
     // buy on low rate and sell on higher rate pool
     let mut src_pool_opt: Option<&Box<dyn Pool>> = None;
@@ -216,7 +233,7 @@ pub fn arbitrage(
     let multiplier = Int256::from_i128(1_000_000_000_000_000_000i128);
     for i in 0..parsed_pools.len() {
         // trick: use multiplier to get over usdt and other denom's decimal
-        // it's fine to compare the ratios with same multiplier 
+        // it's fine to compare the ratios with same multiplier
         let rate = parsed_pools[i].a() * multiplier / parsed_pools[i].b();
         if lowest_rate > rate {
             src_pool_opt = Some(&parsed_pools[i]);
@@ -294,8 +311,10 @@ pub fn arbitrage(
     }
 
     let sender = env.contract.address.to_string();
-    src_swap.amount = Int128::from_be_bytes(execute_amount.to_be_bytes()[16..32].try_into().unwrap());
-    dst_swap.amount = Int128::from_be_bytes(first_swap_output.to_be_bytes()[16..32].try_into().unwrap());
+    src_swap.amount =
+        Int128::from_be_bytes(execute_amount.to_be_bytes()[16..32].try_into().unwrap());
+    dst_swap.amount =
+        Int128::from_be_bytes(first_swap_output.to_be_bytes()[16..32].try_into().unwrap());
     deps.api.debug(
         format!(
             "arbitrage from {} => {}, actual x: {}, estimate first swap output: {}, estimate second swap output: {}, estimate profit: {}",
@@ -336,7 +355,54 @@ pub fn arbitrage(
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
 
-// Let's do astroport + raydium for now
+pub fn swap(
+    deps: Deps,
+    env: Env,
+    dex_name: String,
+    pair: String,
+    denom: String,
+    amount: Int128,
+    _fis_input: &Vec<FISInput>,
+) -> StdResult<Binary> {
+    let swap = &Swap {
+        dex_name: dex_name.clone(),
+        pool_name: pair.clone(),
+        sender: env.contract.address.to_string(),
+        denom,
+        amount,
+    };
+    match dex_name.as_str() {
+        RAYDIUM => {
+            let pool = RaydiumPool::new(&pair)?;
+            let swap_instruction = pool.compose_swap_fis(swap)?;
+            Ok(to_json_binary(&StrategyOutput {
+                instructions: vec![swap_instruction],
+            })?)
+        }
+
+        ASTROPORT => {
+            let pool = AstroportPool::new(&pair)?;
+            let swap_ix = pool.compose_swap_fis(swap)?;
+            Ok(to_json_binary(&StrategyOutput {
+                instructions: vec![swap_ix],
+            })?)
+        }
+
+        UNISWAP => {
+            let pool = UniswapPool::new(&pair)?;
+            let swap_ix = pool.compose_swap_fis(swap)?;
+            Ok(to_json_binary(&StrategyOutput {
+                instructions: vec![swap_ix],
+            })?)
+        }
+        
+        _ => Err(StdError::generic_err(format!(
+            "unsupported dex: {}",
+            dex_name
+        ))),
+    }
+}
+
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let action = from_json::<NexusAction>(msg.msg)?;
@@ -346,6 +412,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             amount,
             min_profit,
         } => arbitrage(deps, env, pair, amount, min_profit, &msg.fis_input),
+        
+        NexusAction::Swap {
+            dex_name,
+            pair,
+            denom,
+            amount,
+        } => swap(deps, env, dex_name, pair, denom, amount, &msg.fis_input),
         // more actions goes here
     }
 }

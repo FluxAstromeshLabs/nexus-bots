@@ -1,17 +1,17 @@
-use cosmwasm_std::{Binary, StdError, Uint256};
+use cosmwasm_std::{Binary, StdError};
 // use fixed::{types::extra, FixedU128};
 
 use serde::{Deserialize, Serialize};
 
-const MAX_TICK: u32 = 887272u32;
 const EVM: &str = "EVM";
+
 pub mod uniswap {
     use cosmwasm_std::{to_json_vec, Binary, Int256, StdError, Uint256};
     use serde::{Deserialize, Serialize};
 
+    use super::{left_pad, MsgExecuteContract, EVM};
     use crate::astromesh::{FISInstruction, Pool, Swap};
-    use super::{get_price_at_tick, left_pad, MsgExecuteContract, EVM};
-    
+
     pub const UNISWAP: &str = "UNISWAP";
     pub const POOL_MANAGER: &str = "07aa076883658b7ed99d25b1e6685808372c8fe2";
 
@@ -125,31 +125,6 @@ pub mod uniswap {
         pub lp_fee: u32,
     }
 
-    impl PoolInfo {
-        // returns currentcy0, currency1 amount
-        pub fn calculate_liquidity_amounts(
-            &self,
-            liquidity: Uint256,
-            lower_tick: i32,
-            upper_tick: i32,
-        ) -> (Int256, Int256) {
-            let lower_price = get_price_at_tick(lower_tick);
-            let upper_price = get_price_at_tick(upper_tick);
-            let cur_price = self.sqrt_price_x96;
-
-            // token0 = L * (1/sqrt(curPrice) - 1/sqrt(upperPrice))
-            // token1 =  L * (sqrt(curPrice) - sqrt(lowerPrice))
-            let denom_0_amount =
-                ((liquidity * (upper_price - cur_price)) << 96) / (cur_price * upper_price);
-            let denom_1_amount = (liquidity * (cur_price - lower_price)) >> 96;
-
-            (
-                Int256::from_be_bytes(denom_0_amount.to_be_bytes()),
-                Int256::from_be_bytes(denom_1_amount.to_be_bytes()),
-            )
-        }
-    }
-
     fn signed_big_int_from_bytes(b: &[u8]) -> Result<Int256, StdError> {
         Ok(Int256::from_be_bytes(
             left_pad(b, 32)?
@@ -185,17 +160,36 @@ pub mod uniswap {
         })
     }
 
+    fn parse_addr(addr: &str) -> [u8; 20] {
+        let mut res = [0u8; 20];
+        hex::decode_to_slice(addr, res.as_mut_slice()).unwrap();
+        res
+    }
+
     pub fn get_pool_key_by_name(pool_name: &str) -> Result<PoolKey, StdError> {
         match pool_name {
-            "btc-usdt" => Ok(PoolKey { currency0: [0; 20], currency1: [0; 20], fee: 3000u32, tick_spacing: 60i32, hooks: [0; 20] }),
-            _ => Err(StdError::generic_err(format!("unsupported pool: {}", pool_name)))
+            "btc-usdt" => Ok(PoolKey {
+                currency0: parse_addr("17cf225befbdc683a48db215305552b3897906f6"),
+                currency1: parse_addr("18ab0f92ffb8b4f07f2d95b193bafd377ab25cc4"),
+                fee: 3000u32,
+                tick_spacing: 60i32,
+                hooks: [0; 20],
+            }),
+            _ => Err(StdError::generic_err(format!(
+                "unsupported pool: {}",
+                pool_name
+            ))),
         }
     }
 
-    pub fn get_denom(alias: &str) -> Result<Vec<u8>, StdError> {
+    pub fn get_denom(alias: &str) -> Result<[u8; 20], StdError> {
         match alias {
-            "btc" => Ok(hex::decode("").unwrap()),
-            _ => Err(StdError::generic_err(format!("evm denom not found: {}", alias)))
+            "btc" => Ok(parse_addr("17cf225befbdc683a48db215305552b3897906f6")),
+            "usdt" => Ok(parse_addr("18ab0f92ffb8b4f07f2d95b193bafd377ab25cc4")),
+            _ => Err(StdError::generic_err(format!(
+                "evm denom not found: {}",
+                alias
+            ))),
         }
     }
 
@@ -223,7 +217,10 @@ pub mod uniswap {
                     denom_b: "usdt".to_string(),
                     tick_spacing: 60,
                 }),
-                _ => Err(StdError::generic_err(format!("unsupported uniswap pair: {}", pair)))
+                _ => Err(StdError::generic_err(format!(
+                    "unsupported uniswap pair: {}",
+                    pair
+                ))),
             }
         }
     }
@@ -245,8 +242,8 @@ pub mod uniswap {
             self.b
         }
 
-        fn swap_output(&self, x: Int256, a_for_b: bool) -> (String, Int256) {
-            // TODO: Implement to estimate swap output
+        fn swap_output(&self, _x: Int256, _a_for_b: bool) -> (String, Int256) {
+            // TODO: Implement to estimate swap output for arbitrage
             ("".to_string(), Int256::zero())
         }
 
@@ -260,12 +257,12 @@ pub mod uniswap {
                 Uint256::MAX
             };
 
-            let swap_params = SwapParams { 
-                zero_for_one, 
-                amount: Int256::from_i128(swap.amount.i128()), 
+            let swap_params = SwapParams {
+                zero_for_one,
+                amount: Int256::from_i128(-swap.amount.i128()),
                 sqrt_price_limit_x96: min_price,
-            }; 
-            // identify source denom => destination denom
+            };
+
             // compose swap
             let calldata = serialize_swap_calldata(pool_key, swap_params);
             let msg = MsgExecuteContract::new(
@@ -297,101 +294,6 @@ fn left_pad(input: &[u8], expected_len: usize) -> Result<Vec<u8>, StdError> {
     padded[start_index..].copy_from_slice(input);
 
     Ok(padded)
-}
-
-pub fn get_price_at_tick(tick: i32) -> Uint256 {
-    let abs_tick: u32 = if tick < 0 {
-        (-tick) as u32
-    } else {
-        tick as u32
-    };
-
-    if abs_tick > MAX_TICK {
-        panic!("InvalidTick");
-    }
-
-    let mut price: Uint256 = if abs_tick & 1 != 0 {
-        Uint256::from(0xfffcb933bd6fad37aa2d162d1a594001u128)
-    } else {
-        Uint256::from_be_bytes(
-            left_pad(
-                hex::decode("0100000000000000000000000000000000")
-                    .unwrap()
-                    .as_slice(),
-                32,
-            )
-            .unwrap()
-            .try_into()
-            .unwrap(),
-        )
-    };
-
-    if abs_tick & 2 != 0 {
-        price = (price * Uint256::from(0xfff97272373d413259a46990580e213a_u128)) >> 128;
-    }
-    if abs_tick & 4 != 0 {
-        price = (price * Uint256::from(0xfff2e50f5f656932ef12357cf3c7fdcc_u128)) >> 128;
-    }
-    if abs_tick & 8 != 0 {
-        price = (price * Uint256::from(0xffe5caca7e10e4e61c3624eaa0941cd0_u128)) >> 128;
-    }
-    if abs_tick & 16 != 0 {
-        price = (price * Uint256::from(0xffcb9843d60f6159c9db58835c926644_u128)) >> 128;
-    }
-    if abs_tick & 32 != 0 {
-        price = (price * Uint256::from(0xff973b41fa98c081472e6896dfb254c0_u128)) >> 128;
-    }
-    if abs_tick & 64 != 0 {
-        price = (price * Uint256::from(0xff2ea16466c96a3843ec78b326b52861_u128)) >> 128;
-    }
-    if abs_tick & 128 != 0 {
-        price = (price * Uint256::from(0xfe5dee046a99a2a811c461f1969c3053_u128)) >> 128;
-    }
-    if abs_tick & 256 != 0 {
-        price = (price * Uint256::from(0xfcbe86c7900a88aedcffc83b479aa3a4_u128)) >> 128;
-    }
-    if abs_tick & 512 != 0 {
-        price = (price * Uint256::from(0xf987a7253ac413176f2b074cf7815e54_u128)) >> 128;
-    }
-    if abs_tick & 1024 != 0 {
-        price = (price * Uint256::from(0xf3392b0822b70005940c7a398e4b70f3_u128)) >> 128;
-    }
-    if abs_tick & 2048 != 0 {
-        price = (price * Uint256::from(0xe7159475a2c29b7443b29c7fa6e889d9_u128)) >> 128;
-    }
-    if abs_tick & 4096 != 0 {
-        price = (price * Uint256::from(0xd097f3bdfd2022b8845ad8f792aa5825_u128)) >> 128;
-    }
-    if abs_tick & 8192 != 0 {
-        price = (price * Uint256::from(0xa9f746462d870fdf8a65dc1f90e061e5_u128)) >> 128;
-    }
-    if abs_tick & 16384 != 0 {
-        price = (price * Uint256::from(0x70d869a156d2a1b890bb3df62baf32f7_u128)) >> 128;
-    }
-    if abs_tick & 32768 != 0 {
-        price = (price * Uint256::from(0x31be135f97d08fd981231505542fcfa6_u128)) >> 128;
-    }
-    if abs_tick & 65536 != 0 {
-        price = (price * Uint256::from(0x9aa508b5b7a84e1c677de54f3e99bc9_u128)) >> 128;
-    }
-    if abs_tick & 131072 != 0 {
-        price = (price * Uint256::from(0x5d6af8dedb81196699c329225ee604_u128)) >> 128;
-    }
-    if abs_tick & 262144 != 0 {
-        price = (price * Uint256::from(0x2216e584f5fa1ea926041bedfe98_u128)) >> 128;
-    }
-    if abs_tick & 524288 != 0 {
-        price = (price * Uint256::from(0x48a170391f7dc42444e8fa2_u128)) >> 128;
-    }
-
-    if tick > 0 {
-        price = Uint256::MAX / price;
-    }
-
-    // Convert to Q128.96 by shifting right by 32 bits and rounding up
-    let price_with_rounding = price + Uint256::from((1u128 << 32) - 1);
-    
-    price_with_rounding >> 32
 }
 
 // more dapp types goes here

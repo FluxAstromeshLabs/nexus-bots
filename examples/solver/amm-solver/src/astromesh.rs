@@ -74,6 +74,14 @@ pub enum NexusAction {
         amount: Int128,
         min_profit: Option<Int128>,
     },
+
+    Swap {
+        dex_name: String,
+        pair: String,
+        denom: String,
+        amount: Int128,
+    },
+    // Swap best rate
 }
 
 pub fn to_uint256(i: Int256) -> Uint256 {

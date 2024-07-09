@@ -59,18 +59,32 @@ pub mod astroport {
 
     pub fn get_pool_meta_by_name(pool_name: &String) -> Result<PoolMeta, StdError> {
         let contract = match pool_name.as_str() {
-            "btc-usdt" => "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts".to_string(),
-            "eth-usdt" => "lux1aakfpghcanxtc45gpqlx8j3rq0zcpyf49qmhm9mdjrfx036h4z5sdltq0m".to_string(),
-            "sol-usdt" => "lux18v47nqmhvejx3vc498pantg8vr435xa0rt6x0m6kzhp6yuqmcp8s3z45es".to_string(),
-            _ => return Err(StdError::generic_err(format!("astroport pair not found: {}", pool_name))),
+            "btc-usdt" => {
+                "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts".to_string()
+            }
+            "eth-usdt" => {
+                "lux1aakfpghcanxtc45gpqlx8j3rq0zcpyf49qmhm9mdjrfx036h4z5sdltq0m".to_string()
+            }
+            "sol-usdt" => {
+                "lux18v47nqmhvejx3vc498pantg8vr435xa0rt6x0m6kzhp6yuqmcp8s3z45es".to_string()
+            }
+            _ => {
+                return Err(StdError::generic_err(format!(
+                    "astroport pair not found: {}",
+                    pool_name
+                )))
+            }
         };
-    
+
         // Split the pair to extract denom_a and denom_b
         let denoms: Vec<&str> = pool_name.split('-').collect();
         if denoms.len() != 2 {
-            return Err(StdError::generic_err(format!("invalid pair format: {}", pool_name)));
+            return Err(StdError::generic_err(format!(
+                "invalid pair format: {}",
+                pool_name
+            )));
         }
-    
+
         Ok(PoolMeta {
             contract,
             denom_a: denoms[0].to_string(),
@@ -91,7 +105,7 @@ pub mod astroport {
     }
 
     impl AstroportPool {
-        pub fn new(pair: &str) -> Result<Self, StdError> {    
+        pub fn new(pair: &str) -> Result<Self, StdError> {
             // Create and return the AstroportPool struct with amounts set to zero and denominations empty
             let pool_meta = get_pool_meta_by_name(&pair.to_string())?;
             Ok(AstroportPool {
@@ -158,12 +172,12 @@ pub mod astroport {
             if a_for_b {
                 (
                     self.denom_b.clone(),
-                    (self.b * x * (bps - self.fee_rate)) / ((self.a + x) * bps)
+                    (self.b * x * (bps - self.fee_rate)) / ((self.a + x) * bps),
                 )
             } else {
                 (
                     self.denom_a.clone(),
-                    (self.a * x * (bps - self.fee_rate)) / ((self.b + x) * bps)
+                    (self.a * x * (bps - self.fee_rate)) / ((self.b + x) * bps),
                 )
             }
         }
