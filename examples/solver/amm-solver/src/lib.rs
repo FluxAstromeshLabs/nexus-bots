@@ -194,13 +194,20 @@ pub fn arbitrage(
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     must_support(&pair)?;
+    // btc-usdt, eth-usdt, sol-usdt
+    let pair_index = match pair.as_str() {
+        "btc-usdt" => 0,
+        "eth-usdt" => 2,
+        "sol-usdt" => 4,
+        _ => unreachable!()
+    };
 
     let raw_pools = [
         fis_input
-            .first()
+            .get(pair_index)
             .ok_or(StdError::generic_err("astroport pool data not found"))?,
         fis_input
-            .get(1)
+            .get(pair_index+1)
             .ok_or(StdError::generic_err("raydium pool data not found"))?,
     ];
 
