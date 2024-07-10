@@ -365,7 +365,10 @@ pub fn swap(
     _fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     if src_denom != "usdt" && dst_denom != "usdt" {
-        return Err(StdError::generic_err(format!("Unsupported swap from {} to {}. Supported pairs: btc-usdt, eth-usdt, sol-usdt", src_denom, dst_denom)))
+        return Err(StdError::generic_err(format!(
+            "Unsupported swap from {} to {}. Supported pairs: btc-usdt, eth-usdt, sol-usdt",
+            src_denom, dst_denom
+        )));
     }
 
     let pair = if src_denom == "usdt" {
@@ -418,12 +421,20 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             min_profit,
         } => arbitrage(deps, env, pair, amount, min_profit, &msg.fis_input),
 
-        NexusAction::Swap { 
-            dex_name, 
-            src_denom, 
-            dst_denom, 
-            amount 
-        } => swap(deps, env, dex_name, src_denom, dst_denom, amount, &msg.fis_input),
+        NexusAction::Swap {
+            dex_name,
+            src_denom,
+            dst_denom,
+            amount,
+        } => swap(
+            deps,
+            env,
+            dex_name,
+            src_denom,
+            dst_denom,
+            amount,
+            &msg.fis_input,
+        ),
         // more actions goes here
     }
 }
