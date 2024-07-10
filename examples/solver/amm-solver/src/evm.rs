@@ -4,12 +4,6 @@ use cosmwasm_std::{Binary, StdError};
 use serde::{Deserialize, Serialize};
 
 const EVM: &str = "EVM";
-
-// /// @dev The minimum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MIN_TICK)
-// uint160 internal constant MIN_SQRT_PRICE = 4295128739;
-// /// @dev The maximum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MAX_TICK)
-// uint160 internal constant MAX_SQRT_PRICE = 1461446703485210103287273052203988822378723970342;
-
 pub mod uniswap {
     use std::str::FromStr;
 
@@ -83,9 +77,7 @@ pub mod uniswap {
                 hooks,
             }
         }
-        // ethabi (getrandom())
 
-        // x: 9244377900000000000000000000000017cf225befbdc683a48db215305552b3897906f600000000000000000000000018ab0f92ffb8b4f07f2d95b193bafd377ab25cc40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffec7800000000000000000000000000000000000000eaf261a5dfcea000000000000000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000
         pub fn serialize(&self) -> Vec<u8> {
             let mut serialized = Vec::with_capacity(160);
             // Adding padding for currency0
