@@ -182,7 +182,7 @@ pub mod astroport {
             }
         }
 
-        fn compose_swap_fis(&self, swap: &Swap) -> Result<FISInstruction, StdError> {
+        fn compose_swap_fis(&self, swap: &Swap) -> Result<Vec<FISInstruction>, StdError> {
             let pool = get_pool_meta_by_name(&swap.pool_name)?;
 
             let msg = MsgExecuteContract::new(
@@ -206,12 +206,12 @@ pub mod astroport {
                 }],
             );
 
-            Ok(FISInstruction {
+            Ok(vec![FISInstruction {
                 plane: "WASM".to_string(),
                 action: "VM_INVOKE".to_string(),
                 address: "".to_string(),
                 msg: to_json_vec(&msg)?,
-            })
+            }])
         }
     }
 }

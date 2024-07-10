@@ -5,15 +5,23 @@ use serde::{Deserialize, Serialize};
 
 const EVM: &str = "EVM";
 
+// /// @dev The minimum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MIN_TICK)
+// uint160 internal constant MIN_SQRT_PRICE = 4295128739;
+// /// @dev The maximum value that can be returned from #getSqrtPriceAtTick. Equivalent to getSqrtPriceAtTick(MAX_TICK)
+// uint160 internal constant MAX_SQRT_PRICE = 1461446703485210103287273052203988822378723970342;
+
 pub mod uniswap {
+    use std::str::FromStr;
+
     use cosmwasm_std::{to_json_vec, Binary, Int256, StdError, Uint256};
     use serde::{Deserialize, Serialize};
 
     use super::{left_pad, MsgExecuteContract, EVM};
     use crate::astromesh::{FISInstruction, Pool, Swap};
 
-    pub const UNISWAP: &str = "UNISWAP";
+    pub const UNISWAP: &str = "uniswap";
     pub const POOL_MANAGER: &str = "07aa076883658b7ed99d25b1e6685808372c8fe2";
+    pub const POOL_ACTION: &str = "e2f81b30e1d47dffdbb6ab41ec5f0572705b026d";
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct PoolKey {
@@ -108,7 +116,7 @@ pub mod uniswap {
         let signature = (0x92443779u32).to_be_bytes();
         let pool_key_bz = pook_key.serialize();
         let swap_params_bz = swap_params.serialize();
-        let empty_hook_data = Binary::from_base64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==").unwrap();
+        let empty_hook_data = Binary::from_base64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==").unwrap();
         let mut res = Vec::new();
         res.extend(signature);
         res.extend(pool_key_bz);
@@ -169,12 +177,29 @@ pub mod uniswap {
     pub fn get_pool_key_by_name(pool_name: &str) -> Result<PoolKey, StdError> {
         match pool_name {
             "btc-usdt" => Ok(PoolKey {
-                currency0: parse_addr("17cf225befbdc683a48db215305552b3897906f6"),
-                currency1: parse_addr("18ab0f92ffb8b4f07f2d95b193bafd377ab25cc4"),
+                currency0: get_denom("btc")?,
+                currency1: get_denom("usdt")?,
                 fee: 3000u32,
                 tick_spacing: 60i32,
                 hooks: [0; 20],
             }),
+
+            "eth-usdt" => Ok(PoolKey {
+                currency0: get_denom("usdt")?,
+                currency1: get_denom("eth")?,
+                fee: 3000u32,
+                tick_spacing: 60i32,
+                hooks: [0; 20],
+            }),
+
+            "sol-usdt" => Ok(PoolKey {
+                currency0: get_denom("usdt")?,
+                currency1: get_denom("sol")?,
+                fee: 3000u32,
+                tick_spacing: 60i32,
+                hooks: [0; 20],
+            }),
+
             _ => Err(StdError::generic_err(format!(
                 "unsupported pool: {}",
                 pool_name
@@ -186,11 +211,75 @@ pub mod uniswap {
         match alias {
             "btc" => Ok(parse_addr("17cf225befbdc683a48db215305552b3897906f6")),
             "usdt" => Ok(parse_addr("18ab0f92ffb8b4f07f2d95b193bafd377ab25cc4")),
+            "sol" => Ok(parse_addr("a7f16731951d943768cf2053485b69ef61fef8be")),
+            "eth" => Ok(parse_addr("6e7b8a754a8a9111f211bc8c8f619e462f8ddf5f")),
             _ => Err(StdError::generic_err(format!(
                 "evm denom not found: {}",
                 alias
             ))),
         }
+    }
+
+    fn compose_erc20_approve(
+        sender: &String,
+        erc20_addr: &[u8; 20],
+        delegator: &[u8; 20],
+        amount: Uint256,
+    ) -> Result<FISInstruction, StdError> {
+        let signature: [u8; 4] = (0x095ea7b3u32).to_be_bytes();
+        let padded_delegator = left_pad(delegator, 32)?;
+        let amount_bytes = amount.to_be_bytes();
+        let mut calldata = Vec::new();
+        calldata.extend(signature);
+        calldata.extend(padded_delegator);
+        calldata.extend(amount_bytes);
+
+        let msg = MsgExecuteContract::new(
+            sender.clone(),
+            Binary::new(erc20_addr.to_vec()),
+            Binary::from(calldata),
+            Binary::from(vec![]),
+        );
+
+        Ok(FISInstruction {
+            plane: "EVM".to_string(),
+            action: "VM_INVOKE".to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&msg)?,
+        })
+    }
+
+    fn compose_swap(swap: &Swap) -> Result<FISInstruction, StdError> {
+        let pool_key = get_pool_key_by_name(&swap.pool_name)?;
+        let src_denom = get_denom(swap.denom.as_str())?;
+        let zero_for_one = src_denom.eq(pool_key.currency0.as_slice());
+        let sqrt_price_limit_x96 = if zero_for_one {
+            Uint256::from_u128(4295128739u128 + 1)
+        } else {
+            Uint256::from_str("1461446703485210103287273052203988822378723970341").unwrap()
+        };
+
+        let swap_params = SwapParams {
+            zero_for_one,
+            amount: Int256::from_i128(-swap.amount.i128()),
+            sqrt_price_limit_x96,
+        };
+
+        // compose swap
+        let calldata = serialize_swap_calldata(pool_key, swap_params);
+        let msg = MsgExecuteContract::new(
+            swap.clone().sender,
+            Binary::from(hex::decode(POOL_ACTION).unwrap()),
+            Binary::from(calldata),
+            Binary::from(vec![]),
+        );
+
+        Ok(FISInstruction {
+            plane: "EVM".to_string(),
+            action: "VM_INVOKE".to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&msg)?,
+        })
     }
 
     pub struct UniswapPool {
@@ -207,16 +296,19 @@ pub mod uniswap {
     impl UniswapPool {
         pub fn new(pair: &str) -> Result<Self, StdError> {
             match pair {
-                "btc-usdt" => Ok(Self {
-                    dex_name: UNISWAP.to_string(),
-                    denom_plane: EVM.to_string(),
-                    a: Int256::zero(),
-                    b: Int256::zero(),
-                    fee_rate: Int256::from_i128(3000),
-                    denom_a: "btc".to_string(),
-                    denom_b: "usdt".to_string(),
-                    tick_spacing: 60,
-                }),
+                "btc-usdt" | "eth-usdt" | "sol-usdt" => {
+                    let parts: Vec<_> = pair.split("-").collect();
+                    Ok(Self {
+                        dex_name: UNISWAP.to_string(),
+                        denom_plane: EVM.to_string(),
+                        a: Int256::zero(),
+                        b: Int256::zero(),
+                        fee_rate: Int256::from_i128(3000),
+                        denom_a: parts.get(0).unwrap().to_string(),
+                        denom_b: parts.get(1).unwrap().to_string(),
+                        tick_spacing: 60,
+                    })
+                }
                 _ => Err(StdError::generic_err(format!(
                     "unsupported uniswap pair: {}",
                     pair
@@ -247,37 +339,17 @@ pub mod uniswap {
             ("".to_string(), Int256::zero())
         }
 
-        fn compose_swap_fis(&self, swap: &Swap) -> Result<FISInstruction, StdError> {
-            let pool_key = get_pool_key_by_name(&swap.pool_name)?;
-            let src_denom = get_denom(swap.denom.as_str())?;
-            let zero_for_one = src_denom.eq(pool_key.currency0.as_slice());
-            let min_price = if zero_for_one {
-                Uint256::zero()
-            } else {
-                Uint256::MAX
-            };
+        fn compose_swap_fis(&self, swap: &Swap) -> Result<Vec<FISInstruction>, StdError> {
+            let denom = get_denom(&swap.denom)?;
+            let approve_instruction = compose_erc20_approve(
+                &swap.sender,
+                &denom,
+                &parse_addr(POOL_ACTION),
+                Uint256::from_u128(swap.amount.i128() as u128),
+            )?;
 
-            let swap_params = SwapParams {
-                zero_for_one,
-                amount: Int256::from_i128(-swap.amount.i128()),
-                sqrt_price_limit_x96: min_price,
-            };
-
-            // compose swap
-            let calldata = serialize_swap_calldata(pool_key, swap_params);
-            let msg = MsgExecuteContract::new(
-                swap.clone().sender,
-                Binary::from(hex::decode(POOL_MANAGER).unwrap()),
-                Binary::from(calldata),
-                Binary::from(vec![]),
-            );
-
-            Ok(FISInstruction {
-                plane: "EVM".to_string(),
-                action: "VM_INVOKE".to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&msg)?,
-            })
+            let swap_instruction = compose_swap(swap)?;
+            Ok(vec![approve_instruction, swap_instruction])
         }
     }
 }

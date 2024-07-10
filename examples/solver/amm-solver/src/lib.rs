@@ -327,30 +327,30 @@ pub fn arbitrage(
         )
         .as_str(),
     );
+
     // actions, take usdt > btc arbitrage as example
     // 1. do swap usdt to btc src pool
     // 2. transfer the swapped btc amount to dst pool
     // 3. swap the btc amount to usdt in dst pool
     // 4. transfer usdt back to src pool
     // TODO: Discuss and decide if initial denom should come from cosmos
-    let instructions = vec![
-        src_pool.compose_swap_fis(&src_swap)?,
-        astro_transfer(
-            sender.clone(),
-            &src_pool.denom_plane(),
-            &dst_pool.denom_plane(),
-            first_output_denom,
-            to_u128(first_swap_output),
-        ),
-        dst_pool.compose_swap_fis(&dst_swap)?,
-        astro_transfer(
-            sender.clone(),
-            &dst_pool.denom_plane(),
-            &src_pool.denom_plane(),
-            second_output_denom,
-            to_u128(second_swap_output),
-        ),
-    ];
+    let mut instructions = vec![];
+    instructions.extend(src_pool.compose_swap_fis(&src_swap)?);
+    instructions.push(astro_transfer(
+        sender.clone(),
+        &src_pool.denom_plane(),
+        &dst_pool.denom_plane(),
+        first_output_denom,
+        to_u128(first_swap_output),
+    ));
+    instructions.extend(dst_pool.compose_swap_fis(&dst_swap)?);
+    instructions.push(astro_transfer(
+        sender.clone(),
+        &dst_pool.denom_plane(),
+        &src_pool.denom_plane(),
+        second_output_denom,
+        to_u128(second_swap_output),
+    ));
 
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
@@ -359,45 +359,50 @@ pub fn swap(
     deps: Deps,
     env: Env,
     dex_name: String,
-    pair: String,
-    denom: String,
+    src_denom: String,
+    dst_denom: String,
     amount: Int128,
     _fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
+    if src_denom != "usdt" && dst_denom != "usdt" {
+        return Err(StdError::generic_err(format!("Unsupported swap from {} to {}. Supported pairs: btc-usdt, eth-usdt, sol-usdt", src_denom, dst_denom)))
+    }
+
+    let pair = if src_denom == "usdt" {
+        format!("{}-{}", dst_denom, src_denom)
+    } else {
+        format!("{}-{}", src_denom, dst_denom)
+    };
+
     let swap = &Swap {
         dex_name: dex_name.clone(),
         pool_name: pair.clone(),
         sender: env.contract.address.to_string(),
-        denom,
+        denom: src_denom,
         amount,
     };
-    match dex_name.as_str() {
-        RAYDIUM => {
+
+    match str::to_lowercase(&dex_name).as_str() {
+        "svm raydium" => {
             let pool = RaydiumPool::new(&pair)?;
-            let swap_instruction = pool.compose_swap_fis(swap)?;
-            Ok(to_json_binary(&StrategyOutput {
-                instructions: vec![swap_instruction],
-            })?)
+            let instructions = pool.compose_swap_fis(swap)?;
+            Ok(to_json_binary(&StrategyOutput { instructions })?)
         }
 
-        ASTROPORT => {
+        "wasm astroport" => {
             let pool = AstroportPool::new(&pair)?;
-            let swap_ix = pool.compose_swap_fis(swap)?;
-            Ok(to_json_binary(&StrategyOutput {
-                instructions: vec![swap_ix],
-            })?)
+            let instructions = pool.compose_swap_fis(swap)?;
+            Ok(to_json_binary(&StrategyOutput { instructions })?)
         }
 
-        UNISWAP => {
+        "evm uniswap" => {
             let pool = UniswapPool::new(&pair)?;
-            let swap_ix = pool.compose_swap_fis(swap)?;
-            Ok(to_json_binary(&StrategyOutput {
-                instructions: vec![swap_ix],
-            })?)
+            let instructions = pool.compose_swap_fis(swap)?;
+            Ok(to_json_binary(&StrategyOutput { instructions })?)
         }
-        
+
         _ => Err(StdError::generic_err(format!(
-            "unsupported dex: {}",
+            "Unsupported: {}. Supported: 'svm raydium', 'wasm astroport', 'evm uniswap'",
             dex_name
         ))),
     }
@@ -412,13 +417,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             amount,
             min_profit,
         } => arbitrage(deps, env, pair, amount, min_profit, &msg.fis_input),
-        
-        NexusAction::Swap {
-            dex_name,
-            pair,
-            denom,
-            amount,
-        } => swap(deps, env, dex_name, pair, denom, amount, &msg.fis_input),
+
+        NexusAction::Swap { 
+            dex_name, 
+            src_denom, 
+            dst_denom, 
+            amount 
+        } => swap(deps, env, dex_name, src_denom, dst_denom, amount, &msg.fis_input),
         // more actions goes here
     }
 }

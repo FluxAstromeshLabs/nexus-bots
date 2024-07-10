@@ -415,7 +415,7 @@ pub mod raydium {
             }
         }
 
-        fn compose_swap_fis(&self, swap: &Swap) -> Result<FISInstruction, StdError> {
+        fn compose_swap_fis(&self, swap: &Swap) -> Result<Vec<FISInstruction>, StdError> {
             let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
             let (_, sender_bz) = bech32::decode(swap.sender.as_str()).unwrap();
             let sender_svm_account: Pubkey =
@@ -472,12 +472,12 @@ pub mod raydium {
                 output_denom,
                 accounts.observer_state,
             );
-            Ok(FISInstruction {
+            Ok(vec![FISInstruction {
                 plane: "SVM".to_string(),
                 action: "VM_INVOKE".to_string(),
                 address: "".to_string(),
                 msg: to_json_vec(&msg)?,
-            })
+            }])
         }
     }
 }

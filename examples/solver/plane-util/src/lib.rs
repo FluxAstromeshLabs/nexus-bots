@@ -32,9 +32,7 @@ pub struct FISInstruction {
 
 #[cw_serde]
 pub enum AbstractionObject {
-    WithdrawAllPlane {
-        denom: String,
-    },
+    WithdrawAllPlane {},
     DepositEqually {
         denom: String,
         amount: Uint256,
