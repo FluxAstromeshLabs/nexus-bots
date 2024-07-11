@@ -185,6 +185,9 @@ fn must_support(pair: &String) -> Result<(), StdError> {
 }
 
 // Arbitrage supports astroport + raydium for now
+// fis_input injects all pool for now
+// format: 
+// [wasm btc-usdt, svm btc-usdt, wasm eth-usdt, svm btc-usdt, wasm sol-usdt, svm sol-usdt]
 pub fn arbitrage(
     deps: Deps,
     env: Env,
@@ -194,8 +197,7 @@ pub fn arbitrage(
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     must_support(&pair)?;
-    // btc-usdt, eth-usdt, sol-usdt
-    let pair_index = match pair.as_str() {
+    let pool_index = match pair.as_str() {
         "btc-usdt" => 0,
         "eth-usdt" => 2,
         "sol-usdt" => 4,
@@ -204,10 +206,10 @@ pub fn arbitrage(
 
     let raw_pools = [
         fis_input
-            .get(pair_index)
+            .get(pool_index)
             .ok_or(StdError::generic_err("astroport pool data not found"))?,
         fis_input
-            .get(pair_index+1)
+            .get(pool_index+1)
             .ok_or(StdError::generic_err("raydium pool data not found"))?,
     ];
 
