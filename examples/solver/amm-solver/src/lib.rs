@@ -13,12 +13,12 @@ use cosmwasm_std::{
     MessageInfo, Response, StdResult, Uint128,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
-use evm::uniswap::{UniswapPool, UNISWAP};
+use evm::uniswap::UniswapPool;
 use std::cmp::min;
 use std::vec::Vec;
 use svm::get_denom;
-use svm::raydium::{RaydiumPool, RAYDIUM};
-use wasm::astroport::{AstroportPool, ASTROPORT};
+use svm::raydium::RaydiumPool;
+use wasm::astroport::AstroportPool;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
