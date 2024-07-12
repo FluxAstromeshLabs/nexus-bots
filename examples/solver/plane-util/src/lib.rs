@@ -136,7 +136,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let address = env.contract.address;
             let balance = from_json::<Coin>(fis_input.get(0).unwrap()).unwrap();
             assert!(
-                balance.amount.le(&amount),
+                amount <= balance.amount,
                 "transfer amount must not exceed current balance"
             );
             let divided_amount = amount.checked_div(Uint256::from(3u128)).unwrap();
