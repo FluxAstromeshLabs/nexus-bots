@@ -8,7 +8,10 @@ pub mod raydium {
     use cosmwasm_std::{to_json_vec, Binary, Int128, Int256, StdError};
     use tiny_keccak::{Hasher, Keccak};
 
-    use super::{get_denom, Account, Instruction, InstructionAccount, MsgTransaction, PoolState, Pubkey, TokenAccount};
+    use super::{
+        get_denom, Account, Instruction, InstructionAccount, MsgTransaction, PoolState, Pubkey,
+        TokenAccount,
+    };
 
     pub const RAYDIUM: &str = "raydium";
     pub const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -61,7 +64,10 @@ pub mod raydium {
                 token1_vault: "6DY4BxWgdoNG557vXUif4A6AdMSSrR7RH4uarfBW7vb5".to_string(),
                 observer_state: "8rvsAHa9HztPWoioR8w6FR64VdS3TZCCmK52i1xCEJoF".to_string(),
             }),
-            name => Err(StdError::generic_err(format!("raydium pair not found: {}", name))),
+            name => Err(StdError::generic_err(format!(
+                "raydium pair not found: {}",
+                name
+            ))),
         }
     }
 
@@ -252,7 +258,7 @@ pub mod raydium {
         };
 
         MsgTransaction {
-            sender,
+            signers: vec![sender],
             accounts,
             instructions: vec![create_output_ata_ix, swap_ix],
             compute_budget: 10_000_000,
@@ -280,6 +286,22 @@ pub mod raydium {
     }
 
     impl RaydiumPool {
+        pub fn new(pair: &str) -> Result<RaydiumPool, StdError> {
+            // Fetch pool accounts using the provided pair name
+            let pool_accounts = get_pool_accounts_by_name(&pair.to_string())?;
+
+            // Create and return the RaydiumPool struct with amounts set to zero and denominations extracted from pair
+            Ok(RaydiumPool {
+                dex_name: RAYDIUM.to_string(),
+                denom_plane: "SVM".to_string(),
+                a: Int256::zero(),
+                b: Int256::zero(),
+                fee_rate: Int256::from(1000i128),
+                denom_a: pool_accounts.token0_mint,
+                denom_b: pool_accounts.token1_mint,
+            })
+        }
+
         pub fn from_fis(input: &FISInput) -> Result<Self, StdError> {
             let token_0_vault_account = Account::from_json_bytes(
                 input
@@ -299,7 +321,7 @@ pub mod raydium {
                     .get(2)
                     .ok_or(StdError::generic_err("expected account 2"))?,
             )?;
-            
+
             let mut token_0_info = TokenAccount::unpack(token_0_vault_account.data.as_slice())?;
             let mut token_1_info = TokenAccount::unpack(token_1_vault_account.data.as_slice())?;
             let mut pool_state_info = PoolState::unpack(pool_state.data.as_slice())?;
@@ -311,8 +333,20 @@ pub mod raydium {
             if token_0_info.mint.to_string() != get_denom("usdt") {
                 (a, b) = (b, a);
                 (token_0_info, token_1_info) = (token_1_info, token_0_info);
-                (pool_state_info.protocol_fees_token_0, pool_state_info.protocol_fees_token_1) = (pool_state_info.protocol_fees_token_1, pool_state_info.protocol_fees_token_0);
-                (pool_state_info.fund_fees_token_0, pool_state_info.fund_fees_token_1) = (pool_state_info.fund_fees_token_1, pool_state_info.fund_fees_token_0);
+                (
+                    pool_state_info.protocol_fees_token_0,
+                    pool_state_info.protocol_fees_token_1,
+                ) = (
+                    pool_state_info.protocol_fees_token_1,
+                    pool_state_info.protocol_fees_token_0,
+                );
+                (
+                    pool_state_info.fund_fees_token_0,
+                    pool_state_info.fund_fees_token_1,
+                ) = (
+                    pool_state_info.fund_fees_token_1,
+                    pool_state_info.fund_fees_token_0,
+                );
             }
 
             a = a - (pool_state_info.protocol_fees_token_0 + pool_state_info.fund_fees_token_0);
@@ -381,7 +415,7 @@ pub mod raydium {
             }
         }
 
-        fn compose_swap_fis(&self, swap: &Swap) -> Result<FISInstruction, StdError> {
+        fn compose_swap_fis(&self, swap: &Swap) -> Result<Vec<FISInstruction>, StdError> {
             let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
             let (_, sender_bz) = bech32::decode(swap.sender.as_str()).unwrap();
             let sender_svm_account: Pubkey =
@@ -438,12 +472,12 @@ pub mod raydium {
                 output_denom,
                 accounts.observer_state,
             );
-            Ok(FISInstruction {
+            Ok(vec![FISInstruction {
                 plane: "SVM".to_string(),
                 action: "VM_INVOKE".to_string(),
                 address: "".to_string(),
                 msg: to_json_vec(&msg)?,
-            })
+            }])
         }
     }
 }
@@ -451,7 +485,7 @@ pub mod raydium {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MsgTransaction {
     /// Sender is the address of the actor that signed the message
-    pub sender: String,
+    pub signers: Vec<String>,
     /// Accounts are the cosmos addresses that sign this message
     pub accounts: Vec<String>,
     /// Instructions are the instructions for the transaction
@@ -653,14 +687,18 @@ impl PoolState {
 
     pub fn unpack(bz: &[u8]) -> Result<PoolState, StdError> {
         if bz.len() != Self::LEN {
-            return Err(StdError::generic_err(format!("pool state account must size must >= {} bytes, current len: {}", Self::LEN, bz.len())));
+            return Err(StdError::generic_err(format!(
+                "pool state account must size must >= {} bytes, current len: {}",
+                Self::LEN,
+                bz.len()
+            )));
         }
 
         let protocol_fees_token_0 = u64::from_le_bytes(bz[341..349].try_into().unwrap());
         let protocol_fees_token_1 = u64::from_le_bytes(bz[349..357].try_into().unwrap());
         let fund_fees_token_0 = u64::from_le_bytes(bz[357..365].try_into().unwrap());
         let fund_fees_token_1 = u64::from_le_bytes(bz[365..373].try_into().unwrap());
-        
+
         Ok(PoolState {
             protocol_fees_token_0,
             protocol_fees_token_1,

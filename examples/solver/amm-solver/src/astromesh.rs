@@ -55,7 +55,7 @@ pub trait Pool {
     fn b(&self) -> Int256;
     // returns denom (within denom_plane) and the swap amount
     fn swap_output(&self, input_amount: Int256, a_for_b: bool) -> (String, Int256);
-    fn compose_swap_fis(&self, swap: &Swap) -> Result<FISInstruction, StdError>;
+    fn compose_swap_fis(&self, swap: &Swap) -> Result<Vec<FISInstruction>, StdError>;
     // other functionalities goes here
 }
 
@@ -74,6 +74,14 @@ pub enum NexusAction {
         amount: Int128,
         min_profit: Option<Int128>,
     },
+
+    Swap {
+        dex_name: String,
+        src_denom: String,
+        dst_denom: String,
+        amount: Int128,
+    },
+    // More instructions to do best swap best rate
 }
 
 pub fn to_uint256(i: Int256) -> Uint256 {
