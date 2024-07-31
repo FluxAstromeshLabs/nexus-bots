@@ -57,6 +57,11 @@ pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
 }
 
+#[cw_serde]
+pub struct AccountLink {
+    svm_address: String,
+}
+
 // swap x from a to b in src_pool, use same b amount to swap b to a in dst_pool
 // this function returns output amount of each swap with input x
 pub fn calculate_pools_output(
@@ -186,7 +191,7 @@ fn must_support(pair: &String) -> Result<(), StdError> {
 
 // Arbitrage supports astroport + raydium for now
 // fis_input injects all pool for now
-// format: 
+// format:
 // [wasm btc-usdt, svm btc-usdt, wasm eth-usdt, svm btc-usdt, wasm sol-usdt, svm sol-usdt]
 pub fn arbitrage(
     deps: Deps,
@@ -201,7 +206,7 @@ pub fn arbitrage(
         "btc-usdt" => 0,
         "eth-usdt" => 2,
         "sol-usdt" => 4,
-        _ => unreachable!()
+        _ => unreachable!(),
     };
 
     let raw_pools = [
@@ -209,15 +214,21 @@ pub fn arbitrage(
             .get(pool_index)
             .ok_or(StdError::generic_err("astroport pool data not found"))?,
         fis_input
-            .get(pool_index+1)
+            .get(pool_index + 1)
             .ok_or(StdError::generic_err("raydium pool data not found"))?,
     ];
+
+    let svm_link_input = fis_input
+        .get(6)
+        .ok_or(StdError::generic_err("account link on svm not found"))?;
 
     // parse pools
     let parsed_pools: Vec<Box<dyn Pool>> = vec![
         Box::new(AstroportPool::from_fis(raw_pools[0])?),
         Box::new(RaydiumPool::from_fis(raw_pools[1])?),
     ];
+    // parse account link
+    let acc_link = from_json::<AccountLink>(svm_link_input.data.get(0).unwrap())?;
 
     deps.api.debug(
         format!(
@@ -297,6 +308,7 @@ pub fn arbitrage(
         pool_name: pair.clone(),
         denom: "usdt".to_string(),
         amount,
+        sender_svm: acc_link.svm_address.clone(),
     };
 
     let mut dst_swap = Swap {
@@ -305,6 +317,7 @@ pub fn arbitrage(
         pool_name: pair.clone(),
         denom: get_pair_output_denom("usdt", &pair),
         amount: Int128::zero(), // to be updated after calculations
+        sender_svm: acc_link.svm_address.clone(),
     };
 
     let execute_amount = min(optimal_x, Int256::from(src_swap.amount.i128()));
@@ -365,13 +378,13 @@ pub fn arbitrage(
 }
 
 pub fn swap(
-    deps: Deps,
+    _deps: Deps,
     env: Env,
     dex_name: String,
     src_denom: String,
     dst_denom: String,
     amount: Int128,
-    _fis_input: &Vec<FISInput>,
+    fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     if src_denom != "usdt" && dst_denom != "usdt" {
         return Err(StdError::generic_err(format!(
@@ -385,6 +398,10 @@ pub fn swap(
     } else {
         format!("{}-{}", src_denom, dst_denom)
     };
+    let svm_link_input = fis_input
+        .get(0)
+        .ok_or(StdError::generic_err("account link on svm not found"))?;
+    let acc_link = from_json::<AccountLink>(svm_link_input.data.get(0).unwrap())?;
 
     let swap = &Swap {
         dex_name: dex_name.clone(),
@@ -392,6 +409,7 @@ pub fn swap(
         sender: env.contract.address.to_string(),
         denom: src_denom,
         amount,
+        sender_svm: acc_link.svm_address.clone(),
     };
 
     match str::to_lowercase(&dex_name).as_str() {
