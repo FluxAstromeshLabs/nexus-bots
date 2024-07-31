@@ -417,10 +417,8 @@ pub mod raydium {
 
         fn compose_swap_fis(&self, swap: &Swap) -> Result<Vec<FISInstruction>, StdError> {
             let accounts = get_pool_accounts_by_name(&swap.pool_name)?;
-            let (_, sender_bz) = bech32::decode(swap.sender.as_str()).unwrap();
-            let sender_svm_account: Pubkey =
-                Pubkey::from_slice(keccak256(sender_bz.as_slice()).as_slice())
-                    .map_err(|e| StdError::generic_err(format!("parse svm err: {}", e)))?;
+            let sender_svm_account = Pubkey::from_string(&swap.sender_svm)
+                .map_err(|e| StdError::generic_err(format!("parse svm address err: {}", e)))?;
             let input_denom = get_denom(&swap.denom);
             let mut amount = swap.amount;
             if input_denom == get_denom("eth") {

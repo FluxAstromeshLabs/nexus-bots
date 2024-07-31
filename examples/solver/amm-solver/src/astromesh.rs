@@ -46,6 +46,7 @@ pub struct Swap {
     pub sender: String,
     pub denom: String,
     pub amount: Int128,
+    pub sender_svm: String,
 }
 
 pub trait Pool {
