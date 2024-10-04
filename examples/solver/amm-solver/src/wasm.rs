@@ -60,13 +60,13 @@ pub mod astroport {
     pub fn get_pool_meta_by_name(pool_name: &String) -> Result<PoolMeta, StdError> {
         let contract = match pool_name.as_str() {
             "btc-usdt" => {
-                "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts".to_string()
+                "lux1zwv6feuzhy6a9wekh96cd57lsarmqlwxdypdsplw6zhfncqw6ftq0p6czt".to_string()
             }
             "eth-usdt" => {
-                "lux1aakfpghcanxtc45gpqlx8j3rq0zcpyf49qmhm9mdjrfx036h4z5sdltq0m".to_string()
+                "lux1xt4ahzz2x8hpkc0tk6ekte9x6crw4w6u0r67cyt3kz9syh24pd7sq5mrz7".to_string()
             }
             "sol-usdt" => {
-                "lux18v47nqmhvejx3vc498pantg8vr435xa0rt6x0m6kzhp6yuqmcp8s3z45es".to_string()
+                "lux1ma0g752dl0yujasnfs9yrk6uew7d0a2zrgvg62cfnlfftu2y0egqenprmx".to_string()
             }
             _ => {
                 return Err(StdError::generic_err(format!(
