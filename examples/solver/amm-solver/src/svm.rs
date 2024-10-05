@@ -15,7 +15,7 @@ pub mod raydium {
 
     pub const RAYDIUM: &str = "raydium";
     pub const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
-    pub const CPMM_PROGRAM_ID: &str = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C";
+    pub const CPMM_PROGRAM_ID: &str = "6W19gt519Ruyw3s4BiKtQXvxETzPbptjgfgB5gMgrfAf";
     pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
     pub const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
     pub const BPS: i128 = 1000000i128;
