@@ -52,21 +52,21 @@ pub mod astroport {
     }
 
     pub struct PoolMeta {
-        contract: String,
-        denom_a: String,
-        denom_b: String,
+        pub contract: String,
+        pub denom_a: String,
+        pub denom_b: String,
     }
 
     pub fn get_pool_meta_by_name(pool_name: &String) -> Result<PoolMeta, StdError> {
         let contract = match pool_name.as_str() {
             "btc-usdt" => {
-                "lux1zwv6feuzhy6a9wekh96cd57lsarmqlwxdypdsplw6zhfncqw6ftq0p6czt".to_string()
+                "lux1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrqhywrts".to_string()
             }
             "eth-usdt" => {
-                "lux1xt4ahzz2x8hpkc0tk6ekte9x6crw4w6u0r67cyt3kz9syh24pd7sq5mrz7".to_string()
+                "lux1aakfpghcanxtc45gpqlx8j3rq0zcpyf49qmhm9mdjrfx036h4z5sdltq0m".to_string()
             }
             "sol-usdt" => {
-                "lux1ma0g752dl0yujasnfs9yrk6uew7d0a2zrgvg62cfnlfftu2y0egqenprmx".to_string()
+                "lux18v47nqmhvejx3vc498pantg8vr435xa0rt6x0m6kzhp6yuqmcp8s3z45es".to_string()
             }
             _ => {
                 return Err(StdError::generic_err(format!(

@@ -44,7 +44,7 @@ pub mod raydium {
                 token1_vault: "8sLhiUaWXu95tzyekfzyvRohiWwu7G65MymJ52iotwLN".to_string(),
                 observer_state: "CxcLseCztNWp57K8NxjYSYuHhY6cdr7S2u6KH9pw9rLu".to_string(),
             }),
-            
+
             "eth-usdt" => Ok(PoolAccounts {
                 authority_account: "3NTS4CmziURYZJ1JywCaCF4urzVbhL6kxNLbpuLzaaR7".to_string(),
                 amm_config_account: "EHR3a7vLxBREzXic1rp7tyPPen6wy8VzdnYfKKRDXJG9".to_string(),

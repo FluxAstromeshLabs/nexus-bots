@@ -10,7 +10,7 @@ use astromesh::{
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, Int256,
-    MessageInfo, Response, StdResult, Uint128,
+    MessageInfo, Response, StdResult, Uint128, Uint64,
 };
 use cosmwasm_std::{from_json, Isqrt, StdError};
 use evm::uniswap::UniswapPool;
@@ -58,8 +58,15 @@ pub struct StrategyOutput {
 }
 
 #[cw_serde]
+pub struct Link {
+    pub cosmos_addr: String,
+    pub svm_addr: String,
+    pub height: Uint64,
+}
+
+#[cw_serde]
 pub struct AccountLink {
-    svm_address: String,
+    pub link: Link,
 }
 
 // swap x from a to b in src_pool, use same b amount to swap b to a in dst_pool
@@ -308,7 +315,7 @@ pub fn arbitrage(
         pool_name: pair.clone(),
         denom: "usdt".to_string(),
         amount,
-        sender_svm: acc_link.svm_address.clone(),
+        sender_svm: acc_link.link.svm_addr.clone(),
     };
 
     let mut dst_swap = Swap {
@@ -317,7 +324,7 @@ pub fn arbitrage(
         pool_name: pair.clone(),
         denom: get_pair_output_denom("usdt", &pair),
         amount: Int128::zero(), // to be updated after calculations
-        sender_svm: acc_link.svm_address.clone(),
+        sender_svm: acc_link.link.svm_addr.clone(),
     };
 
     let execute_amount = min(optimal_x, Int256::from(src_swap.amount.i128()));
@@ -409,7 +416,7 @@ pub fn swap(
         sender: env.contract.address.to_string(),
         denom: src_denom,
         amount,
-        sender_svm: acc_link.svm_address.clone(),
+        sender_svm: acc_link.link.svm_addr.clone(),
     };
 
     match str::to_lowercase(&dex_name).as_str() {
