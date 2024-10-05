@@ -14,8 +14,8 @@ pub mod uniswap {
     use crate::astromesh::{FISInstruction, Pool, Swap};
 
     pub const UNISWAP: &str = "uniswap";
-    pub const POOL_MANAGER: &str = "07aa076883658b7ed99d25b1e6685808372c8fe2";
-    pub const POOL_ACTION: &str = "e2f81b30e1d47dffdbb6ab41ec5f0572705b026d";
+    pub const POOL_MANAGER: &str = "6ff00f6b2120157fca353fbe24d25536042197df";
+    pub const POOL_ACTION: &str = "366c9837f9a32cc11ac5cac1602e57b73e6bf784";
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct PoolKey {
@@ -201,10 +201,10 @@ pub mod uniswap {
 
     pub fn get_denom(alias: &str) -> Result<[u8; 20], StdError> {
         match alias {
-            "btc" => Ok(parse_addr("17cf225befbdc683a48db215305552b3897906f6")),
-            "usdt" => Ok(parse_addr("18ab0f92ffb8b4f07f2d95b193bafd377ab25cc4")),
-            "sol" => Ok(parse_addr("a7f16731951d943768cf2053485b69ef61fef8be")),
-            "eth" => Ok(parse_addr("6e7b8a754a8a9111f211bc8c8f619e462f8ddf5f")),
+            "btc" => Ok(parse_addr("0c7bd7e65621073f481c5a6cc33876b7fd552c2a")),
+            "usdt" => Ok(parse_addr("1a38c7b3f073c038cc7e0e92648e15dd36485259")),
+            "sol" => Ok(parse_addr("eef74ab95099c8d1ad8de02ba6bdab9cbc9dbf93")),
+            "eth" => Ok(parse_addr("d1738300cda711f4e4c6989856c6b83326c6053e")),
             _ => Err(StdError::generic_err(format!(
                 "evm denom not found: {}",
                 alias
