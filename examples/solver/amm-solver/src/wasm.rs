@@ -52,9 +52,9 @@ pub mod astroport {
     }
 
     pub struct PoolMeta {
-        contract: String,
-        denom_a: String,
-        denom_b: String,
+        pub contract: String,
+        pub denom_a: String,
+        pub denom_b: String,
     }
 
     pub fn get_pool_meta_by_name(pool_name: &String) -> Result<PoolMeta, StdError> {
