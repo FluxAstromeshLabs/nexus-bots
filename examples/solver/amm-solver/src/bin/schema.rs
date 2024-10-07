@@ -127,16 +127,14 @@ fn main() {
             "dex_name".to_string(),
         ],
         query: Query {
-            instructions: vec![
-                QueryInstruction {
-                    plane: "COSMOS".to_string(),
-                    action: "COSMOS_QUERY".to_string(),
-                    address: Binary::new(vec![]),
-                    input: vec![Binary::from(
-                        "/flux/svm/v1beta1/account_link/cosmos/${wallet}".as_bytes(),
-                    )],
-                },
-            ],
+            instructions: vec![QueryInstruction {
+                plane: "COSMOS".to_string(),
+                action: "COSMOS_QUERY".to_string(),
+                address: Binary::new(vec![]),
+                input: vec![Binary::from(
+                    "/flux/svm/v1beta1/account_link/cosmos/${wallet}".as_bytes(),
+                )],
+            }],
         },
     };
 
