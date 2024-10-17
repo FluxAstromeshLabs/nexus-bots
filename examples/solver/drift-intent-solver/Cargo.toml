@@ -1,0 +1,19 @@
+[package]
+name = "drift-intent-solver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cosmwasm-std = "2.0.1"
+serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+cosmwasm-schema = "2.0.1"
+ed25519-dalek = "1.0"
+drift = { git = "https://github.com/drift-labs/protocol-v2" }
+bs58 = "0.4"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
