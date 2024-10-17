@@ -52,16 +52,16 @@ pub enum NexusAction {
     PlacePerpMarketOrder {
         market: String,
         usdt_amount: Int128,
-        leverage: Int128,   
-        auction_duration: Int128,
+        leverage: u8,   
+        auction_duration: u8,
     },
+    FillPerpMarketOrder {
+        // TBU
+    }
 }
 
-fn uint16_to_le_bytes(x: u16) -> [u8; 2] {
-    let mut buf = [0u8; 2]; 
-    let mut cursor = std::io::Cursor::new(&mut buf);
-    cursor.write_u16::<LittleEndian>(x).unwrap();
-    buf
+pub fn uint16_to_le_bytes(x: u16) -> [u8; 2] {
+    x.to_le_bytes()
 }
 
 pub fn to_uint256(i: Int256) -> Uint256 {
