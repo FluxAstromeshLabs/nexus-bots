@@ -52,12 +52,12 @@ pub enum NexusAction {
     PlacePerpMarketOrder {
         market: String,
         usdt_amount: Int128,
-        leverage: u8,   
+        leverage: u8,
         auction_duration: u8,
     },
     FillPerpMarketOrder {
         // TBU
-    }
+    },
 }
 
 pub fn uint16_to_le_bytes(x: u16) -> [u8; 2] {

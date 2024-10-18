@@ -1,16 +1,18 @@
+use astromesh::{
+    to_int256, to_u128, to_uint256, uint16_to_le_bytes, FISInput, FISInstruction, MsgAstroTransfer,
+    NexusAction,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_binary, from_json, to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, Int128, MessageInfo, Response, StdError, StdResult, Uint256, Uint64, WasmMsg
-};
-use astromesh::{
-    to_int256, to_u128, to_uint256, uint16_to_le_bytes, FISInput, FISInstruction, MsgAstroTransfer, NexusAction,
+    entry_point, from_binary, from_json, to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env,
+    Int128, MessageInfo, Response, StdError, StdResult, Uint256, Uint64, WasmMsg,
 };
 use std::collections::HashMap;
 use std::vec::Vec;
-mod constants;
-mod svm;
 mod astromesh;
+mod constants;
 mod drift;
+mod svm;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -68,21 +70,15 @@ pub fn place_perp_market_order(
     auction_duration: u8,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
-    
 }
 
-pub fn fill_order(
-    deps: Deps,
-    env: Env,
-) {
-
-}
+pub fn fill_order(deps: Deps, env: Env) {}
 
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let action = from_json::<NexusAction>(msg.msg)?;  
+    let action = from_json::<NexusAction>(msg.msg)?;
     match action {
-        NexusAction::PlacePerpMarketOrder{
+        NexusAction::PlacePerpMarketOrder {
             market,
             usdt_amount,
             leverage,
@@ -96,10 +92,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             auction_duration,
             &msg.fis_input,
         ),
-        NexusAction::FillMarketOrder{
+        NexusAction::FillMarketOrder {
             taker_svm_address,
             taker_order_id,
             percent,
-        } => unreachable!()
+        } => unreachable!(),
     }
 }

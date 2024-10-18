@@ -1,7 +1,12 @@
+use std::collections::BTreeMap;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, StdError, Uint64};
 use sha2::{Digest, Sha256};
 const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
+pub const SPL_TOKEN2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+pub const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
+pub const SYS_VAR_RENT_ID: &str = "SysvarRent11111111111111111111111111111111";
 
 #[cw_serde]
 pub struct Link {
@@ -46,38 +51,99 @@ pub struct Instruction {
     pub data: Binary,
 }
 
-// === instruction utils ===
-pub mod drift {
-    use super::Instruction;
+pub struct InstructionAccountMeta {
+    pub pubkey: String,
+    pub is_signer: bool,
+    pub is_writable: bool,
+}
 
-    fn create_intialize_user_ix(
-        sender_svm_account: String,
-    ) -> Instruction {
-        
+pub struct InstructionMeta {
+    pub program_id: String,
+    pub account_meta: Vec<InstructionAccountMeta>,
+    pub data: Binary,
+}
+
+pub struct TransactionBuilder {
+    instructions: Vec<InstructionMeta>,
+}
+
+impl TransactionBuilder {
+    pub fn new() -> TransactionBuilder {
+        TransactionBuilder {
+            instructions: vec![],
+        }
     }
 
-    fn create_intialize_userstats_ix(
-        sender_svm_account: String,
-    ) -> Instruction {
-        
+    pub fn add_instruction(&self, ix: InstructionMeta) -> &Self {
+        self.instructions.push(ix);
+        &self
     }
 
-    fn create_deposit_ix(
-        sender_svm_account: String,
-    ) -> Instruction {
-        
-    }
+    pub fn build(&self, cosmos_signers: Vec<String>, compute_budget: u64) -> MsgTransaction {
+        // Step 1: Collect unique accounts and assign indices using BTreeMap
+        let mut account_map: BTreeMap<String, u32> = BTreeMap::new();
+        let mut accounts: Vec<String> = Vec::new();
+        let mut current_index: u32 = 0;
 
-    fn create_place_perp_order_ix(
-        sender_svm_account: String,
-    ) -> Instruction {
-        
-    }
+        for ix in &self.instructions {
+            if !account_map.contains_key(&ix.program_id) {
+                account_map.insert(ix.program_id.clone(), current_index);
+                accounts.push(ix.program_id.clone());
+                current_index += 1;
+            }
 
-    fn create_fill_perp_order_ix(
-        sender_svm_account: String,
-    ) -> Instruction {
-        
+            for meta in &ix.account_meta {
+                if !account_map.contains_key(&meta.pubkey) {
+                    account_map.insert(meta.pubkey.clone(), current_index);
+                    accounts.push(meta.pubkey.clone());
+                    current_index += 1;
+                }
+            }
+        }
+        // Transform instructions meta into instruction
+        let mut instructions: Vec<Instruction> = Vec::new();
+
+        for ix in &self.instructions {
+            // Get program index
+            let program_idx = *account_map
+                .get(&ix.program_id)
+                .expect("Program ID not found");
+
+            // Transform account_meta to InstructionAccount
+            let mut instruction_accounts: Vec<InstructionAccount> = Vec::new();
+
+            for (i, meta) in ix.account_meta.iter().enumerate() {
+                let account_idx = *account_map.get(&meta.pubkey).expect("Account not found");
+
+                // Match the first signer as the caller (cosmos_signers[0])
+                let caller_index = account_map
+                    .get(&cosmos_signers[0])
+                    .expect("Caller signer not found");
+
+                instruction_accounts.push(InstructionAccount {
+                    id_index: i as u32,
+                    caller_index: *caller_index,
+                    callee_index: account_idx,
+                    is_signer: meta.is_signer,
+                    is_writable: meta.is_writable,
+                });
+            }
+
+            // Create Instruction
+            instructions.push(Instruction {
+                program_index: vec![program_idx],
+                accounts: instruction_accounts,
+                data: ix.data.clone(),
+            });
+        }
+
+        // Step 4: Assemble MsgTransaction
+        MsgTransaction {
+            signers: cosmos_signers,
+            accounts,
+            instructions,
+            compute_budget,
+        }
     }
 }
 

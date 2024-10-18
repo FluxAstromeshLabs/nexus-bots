@@ -1,36 +1,118 @@
-use crate::svm::Instruction;
+use cosmwasm_std::{Binary, StdError, StdResult};
+
+use crate::svm::{
+    Instruction, InstructionAccount, InstructionAccountMeta, InstructionMeta, Pubkey,
+    SYSTEM_PROGRAM_ID, SYS_VAR_RENT_ID,
+};
 pub const DRIFT_PROGRAM_ID: &str = "FLR3mfYrMZUnhqEadNJVwjUhjX8ky9vE9qTtDmkK4vwC";
 
-pub fn create_initialize_user_ix(
+pub fn create_initialize_user_ixs(
     sender_svm: String,
-) -> Instruction {
+    drift_state: String,
+) -> StdResult<Vec<InstructionMeta>> {
+    let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+    let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let subacc_index = 0u16.to_le_bytes();
+    let (user, _) = Pubkey::find_program_address(
+        &["user".as_bytes(), sender_pubkey.0.as_slice(), &subacc_index],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
 
+    let (userstats, _) = Pubkey::find_program_address(
+        &["user_stats".as_bytes(), sender_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
+
+    let initialize_user_data = [subacc_index.as_slice(), [0u8; 32].as_slice()].concat().as_slice();
+    Ok(vec![
+        InstructionMeta {
+            program_id: drift_program_id.to_string(),
+            account_meta: vec![
+                InstructionAccountMeta {
+                    pubkey: userstats.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: drift_state,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm,
+                    is_signer: true,
+                    is_writable: false,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm,
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYS_VAR_RENT_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ],
+            data: Binary::new(vec![]),
+        },
+        InstructionMeta {
+            program_id: drift_program_id.to_string(),
+            account_meta: vec![
+                InstructionAccountMeta {
+                    pubkey: user.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: userstats.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: drift_state,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm,
+                    is_signer: true,
+                    is_writable: false,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm,
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYS_VAR_RENT_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ],
+            data: Binary::new(initialize_user_data.to_vec()),
+        },
+    ])
 }
 
-pub fn create_initialize_userstats_ix(
-    sender_svm: String,
-) -> Instruction {
+/*
+pub fn create_deposit_ix(sender_svm: String) -> InstructionMeta {}
 
-}
+pub fn create_place_order_ix(sender_svm: String) -> InstructionMeta {}
 
-pub fn create_deposit_ix(
-    sender_svm: String,
-) -> Instruction {
-
-}
-
-pub fn create_place_order_ix(
-    sender_svm: String,
-) -> Instruction {
-
-}
-
-pub fn create_fill_order_ix(
-    sender_svm: String,
-) -> Instruction {
-
-}
-
+pub fn create_fill_order_ix(sender_svm: String) -> InstructionMeta {}
 
 // transfer funds
 pub fn deposit(
@@ -47,7 +129,7 @@ pub fn deposit(
 
     let (spot_market_vault, _) = PubKey::find_program_address(
         &["spot_market_vault".as_bytes(), uint16_to_le_bytes(0)], &DRIFT_PROGRAM_ID
-    );  
+    );
 
     let (user_token_account, _) = PubKey::find_program_address(
         &["user_token_account".as_bytes(), &SPL_TOKEN_PROGRAM_ID.0, &mint.0], &SPL_TOKEN_PROGRAM_ID
@@ -88,7 +170,7 @@ pub fn deposit(
         rent: SYS_VAR_RENT_ID,
         system_program: SYSTEM_PROGRAM_ID,
     };
-    
+
     handle_initialize_user(
         initialize_user,
         sub_account_id: 0,
@@ -99,7 +181,7 @@ pub fn deposit(
         state: state,
         user: user,
         user_stats: user_stats,
-        authority: svm_pub_key,   
+        authority: svm_pub_key,
         spot_market_vault: spot_market_vault,
         user_token_account: user_token_account,
         token_account: SPL_TOKEN_PROGRAM_ID,
@@ -151,7 +233,7 @@ pub fn get_drift_user_info(
 
     let acc_link = from_json::<AccountLink>(svm_link_input.data.get(0).unwrap())?;
     let user_decoder = base64::decode(acc_link.account.data).unwrap();
-    // let user_info = 
+    // let user_info =
 
     Ok(user_info)
 }
@@ -172,7 +254,7 @@ pub fn place_perp_market_order(
 
 
     let svm_link_input = from_json::<AccountLink>(svm_link_input)?;
-    
+
     let mut all_market = Vec::new();
     for spot_market_index in [0u16, 1].iter() {
         let seed: &[&[u8]] = &[
@@ -223,7 +305,7 @@ pub fn place_perp_market_order(
         market_map.insert(market_index, market_info);
         all_oracles.push(market_info.amm.oracle);
     }
-    
+
     // get drift user info
     let drift_user = get_drift_user_info(
         deps,
@@ -264,7 +346,7 @@ pub fn place_perp_market_order(
             market_type: MarketType::Perp,
             direction: OrderDirection::Long,
             user_order_id: order_id,
-            base_asset_amount: order.quantity, 
+            base_asset_amount: order.quantity,
             price: order.auction_end_price,
             market_index: order.market_index,
             reduce_only: false,
@@ -295,9 +377,9 @@ pub fn place_perp_market_order(
             user,
             svm_pub_key,
         );
-        
+
         // continue;
-        // append part 
+        // append part
 
     }
 
@@ -320,6 +402,7 @@ pub fn place_perp_market_order(
         }
     }
 
-    
+
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
+*/
