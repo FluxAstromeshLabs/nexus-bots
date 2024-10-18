@@ -28,6 +28,15 @@ pub struct MsgWithdrawDelegatorReward {
 }
 
 #[cw_serde]
+pub struct MsgDelegate {
+    #[serde(rename = "@type")]
+    pub ty: String,
+    pub delegator_address: String,
+    pub validator_address: String,
+    pub amount: Vec<BankAmount>,
+}
+
+#[cw_serde]
 pub struct FISInstruction {
     plane: String,
     action: String,
@@ -89,30 +98,25 @@ pub fn execute(
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mut instructions = vec![];
     // 1. parse claimable rewards
-    let claimable_rewards = from_json::<Vec<RewardsResponse>>(msg.fis_input)?;
-    
-    let validator_address = claimable_rewards
-        .get(0)
-        .and_then(|reward_response| reward_response.rewards.get(0))
-        .map(|validator_reward| validator_reward.validator_address.clone());   
-    
-    let reward_amount = claimable_rewards
-        .get(0)
-        .and_then(|reward_response| reward_response.rewards.get(0))
-        .and_then(|validator_reward| validator_reward.reward.get(0)) 
-        .map(|reward| &reward.amount);
+    let fis = &msg.fis_input[0];
+    let rewards_response = from_json::<RewardsResponse>(fis.data.first().unwrap()).unwrap();
 
-    let total = claimable_rewards
-        .get(0)
-        .and_then(|reward_response| reward_response.total.get(0))
-        .map(|total| &total.amount);
+    let rewards = rewards_response.rewards.clone(); 
 
+    let validator_address = rewards[0].validator_address.clone();
+    let reward = &rewards[0].reward[0]; 
+    let reward_amount = reward.amount.parse::<u64>().unwrap(); 
+
+    let total = &rewards_response.total[0]; 
+    let total_amount = total.amount.parse::<u64>().unwrap(); 
+
+    let delegator_address = env.contract.address.into_string();
 
     // 2. compose cosmos msg to claim rewards
     let claim_reward = MsgWithdrawDelegatorReward {
         ty: "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward".to_string(),
-        delegator_address: env.contract.address.into_string(),
-        validator_address: &validator_address,
+        delegator_address: delegator_address.clone(),
+        validator_address: validator_address.to_string(),
     };
 
     instructions.push(FISInstruction {
@@ -125,11 +129,11 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // 3. compose cosmos msg to stake the claimed rewards
     let stake_reward = MsgDelegate{
         ty: "/cosmos.staking.v1beta1.MsgDelegate".to_string(),
-        delegator_address: env.contract.address.into_string(),
-        validator_address: &validator_address,
+        delegator_address,
+        validator_address,
         amount: vec![BankAmount {
             denom: "lux".to_string(),
-            amount: reward_amount + total,
+            amount: (reward_amount + total_amount).to_string(),
         }],
     };
 
