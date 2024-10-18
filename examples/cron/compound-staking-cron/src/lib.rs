@@ -53,6 +53,18 @@ pub struct BankAmount {
     amount: String,
 }
 
+#[cw_serde]
+struct ValidatorReward {
+    validator_address: String,
+    reward: Vec<BankAmount>,
+}
+
+#[cw_serde]
+struct RewardsResponse {
+    rewards: Vec<ValidatorReward>,
+    total: Vec<BankAmount>
+}
+
 #[entry_point]
 pub fn instantiate(
     _deps: DepsMut,
@@ -77,12 +89,30 @@ pub fn execute(
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mut instructions = vec![];
     // 1. parse claimable rewards
+    let claimable_rewards = from_json::<Vec<RewardsResponse>>(msg.fis_input)?;
+    
+    let validator_address = claimable_rewards
+        .get(0)
+        .and_then(|reward_response| reward_response.rewards.get(0))
+        .map(|validator_reward| validator_reward.validator_address.clone());   
+    
+    let reward_amount = claimable_rewards
+        .get(0)
+        .and_then(|reward_response| reward_response.rewards.get(0))
+        .and_then(|validator_reward| validator_reward.reward.get(0)) 
+        .map(|reward| &reward.amount);
+
+    let total = claimable_rewards
+        .get(0)
+        .and_then(|reward_response| reward_response.total.get(0))
+        .map(|total| &total.amount);
+
 
     // 2. compose cosmos msg to claim rewards
     let claim_reward = MsgWithdrawDelegatorReward {
         ty: "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward".to_string(),
         delegator_address: env.contract.address.into_string(),
-        validator_address: "luxvaloper1qry5x2d383v9hkqc0fpez53yluyxvey2c957m4".to_string(),
+        validator_address: &validator_address,
     };
 
     instructions.push(FISInstruction {
@@ -91,7 +121,24 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         address: "".to_string(),
         msg: to_json_vec(&claim_reward).unwrap(),
     });
+
     // 3. compose cosmos msg to stake the claimed rewards
+    let stake_reward = MsgDelegate{
+        ty: "/cosmos.staking.v1beta1.MsgDelegate".to_string(),
+        delegator_address: env.contract.address.into_string(),
+        validator_address: &validator_address,
+        amount: vec![BankAmount {
+            denom: "lux".to_string(),
+            amount: reward_amount + total,
+        }],
+    };
+
+    instructions.push(FISInstruction {
+        plane: "COSMOS".to_string(),
+        action: "COSMOS_INVOKE".to_string(),
+        address: "".to_string(),
+        msg: to_json_vec(&stake_reward).unwrap(),
+    });
 
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
