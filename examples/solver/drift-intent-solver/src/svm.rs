@@ -74,9 +74,9 @@ impl TransactionBuilder {
         }
     }
 
-    pub fn add_instruction(&self, ix: InstructionMeta) -> &Self {
+    pub fn add_instruction(&mut self, ix: InstructionMeta) -> &mut Self {
         self.instructions.push(ix);
-        &self
+        self
     }
 
     pub fn build(&self, cosmos_signers: Vec<String>, compute_budget: u64) -> MsgTransaction {

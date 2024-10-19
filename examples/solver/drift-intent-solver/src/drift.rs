@@ -1,17 +1,18 @@
-use cosmwasm_std::{Binary, StdError, StdResult};
+use cosmwasm_std::{Binary, Decimal256, DelegationResponse, DelegationTotalRewardsResponse, StdError, StdResult};
 
 use crate::svm::{
-    Instruction, InstructionAccount, InstructionAccountMeta, InstructionMeta, Pubkey,
-    SYSTEM_PROGRAM_ID, SYS_VAR_RENT_ID,
+    InstructionAccountMeta, InstructionMeta, Pubkey, SPL_TOKEN2022_PROGRAM_ID, SYSTEM_PROGRAM_ID, SYS_VAR_RENT_ID
 };
+use borsh::{BorshDeserialize, BorshSerialize};
+
 pub const DRIFT_PROGRAM_ID: &str = "FLR3mfYrMZUnhqEadNJVwjUhjX8ky9vE9qTtDmkK4vwC";
 
 pub fn create_initialize_user_ixs(
     sender_svm: String,
     drift_state: String,
 ) -> StdResult<Vec<InstructionMeta>> {
-    let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
     let subacc_index = 0u16.to_le_bytes();
     let (user, _) = Pubkey::find_program_address(
         &["user".as_bytes(), sender_pubkey.0.as_slice(), &subacc_index],
@@ -25,10 +26,11 @@ pub fn create_initialize_user_ixs(
     )
     .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
 
-    let initialize_user_data = [subacc_index.as_slice(), [0u8; 32].as_slice()].concat().as_slice();
+    let initialize_user_stat_data = &[254, 243, 72, 98, 251, 130, 168, 213];
+    let initialize_user_data = [[111, 17, 185, 250, 60, 122, 38, 254].as_slice(), subacc_index.as_slice(), [0u8; 32].as_slice()].concat();
     Ok(vec![
         InstructionMeta {
-            program_id: drift_program_id.to_string(),
+            program_id: DRIFT_PROGRAM_ID.to_string(),
             account_meta: vec![
                 InstructionAccountMeta {
                     pubkey: userstats.to_string(),
@@ -36,17 +38,17 @@ pub fn create_initialize_user_ixs(
                     is_writable: true,
                 },
                 InstructionAccountMeta {
-                    pubkey: drift_state,
+                    pubkey: drift_state.clone(),
                     is_signer: false,
                     is_writable: true,
                 },
                 InstructionAccountMeta {
-                    pubkey: sender_svm,
+                    pubkey: sender_svm.clone(),
                     is_signer: true,
                     is_writable: false,
                 },
                 InstructionAccountMeta {
-                    pubkey: sender_svm,
+                    pubkey: sender_svm.clone(),
                     is_signer: true,
                     is_writable: true,
                 },
@@ -61,10 +63,10 @@ pub fn create_initialize_user_ixs(
                     is_writable: false,
                 },
             ],
-            data: Binary::new(vec![]),
+            data: Binary::new(initialize_user_stat_data.to_vec()),
         },
         InstructionMeta {
-            program_id: drift_program_id.to_string(),
+            program_id: DRIFT_PROGRAM_ID.to_string(),
             account_meta: vec![
                 InstructionAccountMeta {
                     pubkey: user.to_string(),
@@ -82,7 +84,7 @@ pub fn create_initialize_user_ixs(
                     is_writable: true,
                 },
                 InstructionAccountMeta {
-                    pubkey: sender_svm,
+                    pubkey: sender_svm.clone(),
                     is_signer: true,
                     is_writable: false,
                 },
@@ -102,307 +104,317 @@ pub fn create_initialize_user_ixs(
                     is_writable: false,
                 },
             ],
-            data: Binary::new(initialize_user_data.to_vec()),
+            data: Binary::new(initialize_user_data),
         },
     ])
 }
 
-/*
-pub fn create_deposit_ix(sender_svm: String) -> InstructionMeta {}
-
-pub fn create_place_order_ix(sender_svm: String) -> InstructionMeta {}
-
-pub fn create_fill_order_ix(sender_svm: String) -> InstructionMeta {}
-
-// transfer funds
-pub fn deposit(
-    _deps: Deps,
-    _env: Env,
-    svm_pub_key: PubKey,
-    deposit_amount: Uint256,
-    mint: PubKey,
-){
-
-    let (state, _) = PubKey::find_program_address(
-        &["drift_state".as_bytes()], &DRIFT_PROGRAM_ID
-    );
-
-    let (spot_market_vault, _) = PubKey::find_program_address(
-        &["spot_market_vault".as_bytes(), uint16_to_le_bytes(0)], &DRIFT_PROGRAM_ID
-    );
-
-    let (user_token_account, _) = PubKey::find_program_address(
-        &["user_token_account".as_bytes(), &SPL_TOKEN_PROGRAM_ID.0, &mint.0], &SPL_TOKEN_PROGRAM_ID
-    );
-
-    let (user, _) = PubKey::find_program_address(
-        &["user".as_bytes(), &svm_pub_key.0, &[0, 0]], &DRIFT_PROGRAM_ID
-    );
-
-    let (user_stats, _) = PubKey::find_program_address(
-        &["user_stats".as_bytes(), &svm_pub_key.0], &DRIFT_PROGRAM_ID
-    );
-
-    let market_index = 0;
-    let (spot_market, _) = PubKey::find_program_address(
-        &["spot_market".as_bytes(), uint16_to_le_bytes(market_index)], &DRIFT_PROGRAM_ID
-    );
-
-    let initialize_user_stats = InitializeUserStats {
-        user_stats: user_stats,
-        state: state,
-        authority: svm_pub_key,
-        payer: svm_pub_key,
-        rent: SYS_VAR_RENT_ID,
-        system_program: SYSTEM_PROGRAM_ID,
-    };
-
-    handle_initialize_user_stats(
-        initialize_user_stats,
-    );
-
-    let initialize_user = InitializeUser {
-        user: user,
-        user_stats: user_stats,
-        state: state,
-        authority: svm_pub_key,
-        payer: svm_pub_key,
-        rent: SYS_VAR_RENT_ID,
-        system_program: SYSTEM_PROGRAM_ID,
-    };
-
-    handle_initialize_user(
-        initialize_user,
-        sub_account_id: 0,
-        name: [0u8; 32],
-    );
-
-    let deposit = Deposit {
-        state: state,
-        user: user,
-        user_stats: user_stats,
-        authority: svm_pub_key,
-        spot_market_vault: spot_market_vault,
-        user_token_account: user_token_account,
-        token_account: SPL_TOKEN_PROGRAM_ID,
-    };
-
-    let deposit_ix_builder = {
-        deposit,
-        market_index: market_index,
-        amount: deposit_amount,
-        reduce_only: false,
-    };
-
-
-    // struggle with deposit_ix_builder
-    deposit_ix_builder.append(
-        AccountMeta {
-            pubkey: spot_market,
-            is_writable: true,
-            is_signer: false,
-        },
-    );
-
-}
-
-pub fn get_drift_perp_market_info(
-    deps: Deps,
-    env: Env,
-    perp_market_index: u16,
-    svm_link_input: &FISInput,
-) -> StdResult<PerpMarket> {
-    let (perp_market, _) = PubKey::find_program_address(
-        &["perp_market".as_bytes(), uint16_to_le_bytes(perp_market_index)], &DRIFT_PROGRAM_ID
-    );
-
-    let acc_link = from_json::<AccountLink>(svm_link_input.data.get(0).unwrap())?;
-
-    Ok(perp_market_info)
-}
-
-pub fn get_drift_user_info(
-    deps: Deps,
-    env: Env,
-    svm_pub_key: PubKey,
-    svm_link_input: &FISInput,
-) -> StdResult<User> {
-    let (user, _) = PubKey::find_program_address(
-        &["user".as_bytes(), &svm_pub_key.0, &[0, 0]], &DRIFT_PROGRAM_ID
-    );
-
-    let acc_link = from_json::<AccountLink>(svm_link_input.data.get(0).unwrap())?;
-    let user_decoder = base64::decode(acc_link.account.data).unwrap();
-    // let user_info =
-
-    Ok(user_info)
-}
-
-pub fn place_perp_market_order(
-    deps: Deps,
-    env: Env,
-    market: String,
-    usdt_amount: Uint256,
-    leverage: Uint256,
-    auction_duration: Uint256,
-    fis_input: &Vec<FISInput>,
-) -> StdResult<Binary> {
-
-    let svm_link_input = fis_input
-        .get(0)
-        .ok_or(StdError::generic_err("svm account not found"))?;
-
-
-    let svm_link_input = from_json::<AccountLink>(svm_link_input)?;
-
-    let mut all_market = Vec::new();
-    for spot_market_index in [0u16, 1].iter() {
-        let seed: &[&[u8]] = &[
-            b"spot_market",
-            &uint16_to_le_bytes(*spot_market_index),
-        ];
-        let (market, _) = PubKey::find_program_address(seeds, DRIFT_PROGRAM_ID);
-        all_markets.push(market);
-    };
-
-    let mut all_market = Vec::new();
-    for perp_market_index in [0u16, 1].iter() {
-        let seed: &[&[u8]] = &[
-            b"perp_market",
-            &uint16_to_le_bytes(*perp_market_index),
-        ];
-        let (market, _) = PubKey::find_program_address(seeds, DRIFT_PROGRAM_ID);
-        all_markets.push(market);
-    };
-
-    let denom = {
-        src_plane: "0".to_String(), // plan cosmos
-        dst_plane: "3".to_String(), // plan svm
-        src_addr: "usdt".to_string(),
-    }
-
-    let usdt_minx_hex = denom.dst_plane;
-    let usdt_mint_bz = usdt_mint_hex.as_bytes();
-    let usdt_mint = PubKey::from_slice(usdt_mint_bz).unwrap();
-
-    deposit(
-        deps,
-        env,
-        svm_pub_key,
-        1000000000,
-        usdt_mint,
+pub fn create_deposit_usdt_ix(
+    sender_svm: String,
+    drift_state: String,
+    amount: u64,
+) -> StdResult<Vec<InstructionMeta>> {
+    let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+    let (user, _) = Pubkey::find_program_address(
+        &["user".as_bytes(), sender_pubkey.0.as_slice()],
+        &drift_program_id,
     )
+    .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
 
-    // get perp market info
-    let market_map = HashMap::new();
-    let all_oracles = Vec::new();
-    for market_index in [0u16, 1, 2].iter() {
-        let market_info = get_drift_perp_market_info(
-            deps,
-            env,
-            market_index,
-        )?;
-        market_map.insert(market_index, market_info);
-        all_oracles.push(market_info.amm.oracle);
-    }
+    let (user_stats, _) = Pubkey::find_program_address(
+        &["user_stats".as_bytes(), sender_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
 
-    // get drift user info
-    let drift_user = get_drift_user_info(
-        deps,
-        env,
-        svm_pub_key,
-    )?;
+    let market_index = 0u16;
+    let deposit_data = &[
+        [242, 35, 198, 137, 82, 225, 242, 182].as_slice(), 
+        market_index.to_le_bytes().as_slice(), 
+        amount.to_le_bytes().as_slice(), 
+        &[0],
+    ].concat();
 
-    let order_id = drift_user.next_order_id;
-    let market_orders = vec![
-        Order {
-            market_index: 0,
-            auction_start_price: 65_020_000_000,
-            auction_end_price: 65_033_000_000,
-            direction: PositionDirection::Long,
-            quantity: 500_000,
-        },
-        Order {
-            market_index: 1,
-            auction_start_price: 3_001_000_000,
-            auction_end_price: 3_004_000_000,
-            direction: PositionDirection::Long,
-            quantity: 500_000,
-        },
-        Order {
-            market_index: 2,
-            auction_start_price: 151_000_000,
-            auction_end_price: 151_100_000,
-            direction: PositionDirection::Long,
-            quantity: 500_000,
-        },
-    ];
-
-    let unix_expire_time = (Utc::now() + Duration::minutes(10)).timestamp();
-
-    for order in market_orders.iter() {
-        let order_params = OrderParams {
-            order_type: OrderType::Market,
-            market_type: MarketType::Perp,
-            direction: OrderDirection::Long,
-            user_order_id: order_id,
-            base_asset_amount: order.quantity,
-            price: order.auction_end_price,
-            market_index: order.market_index,
-            reduce_only: false,
-            post_only: PostOnlyParam::None,
-            immediate_or_cancel: false,
-            max_ts: unix_expire_time,
-            trigger_price: 0,
-            trigger_condition: OrderTriggerCondition::Above,
-            oracle_price_offset: 0,
-            auction_duration: auction_duration,
-            auction_start_price: order.auction_start_price,
-            auction_end_price: order.auction_end_price,
-        };
-
-        ++order_id;
-
-        let (state, _) = PubKey::find_program_address(
-            &["drift_state".as_bytes()], &DRIFT_PROGRAM_ID
-        );
-
-        let (user, _) = PubKey::find_program_address(
-            &["user".as_bytes(), &svm_pub_key.0, &[0, 0]], &DRIFT_PROGRAM_ID
-        );
-
-        let place_order_ix = handle_place_perp_order(
-            order_params,
-            state,
-            user,
-            svm_pub_key,
-        );
-
-        // continue;
-        // append part
-
-    }
-
-    drift_user = get_drift_user_info(
-        deps,
-        env,
-        svm_pub_key,
-    )?;
-    for order in drift_user.iter() {
-        if (order.Status == "Open") {
-            let order_id = order.user_order_id;
-            let market_index = order.market_index;
-            let cancel_order_ix = handle_cancel_order(
-                order_id,
-                market_index,
-                state,
-                user,
-                svm_pub_key,
-            );
+    Ok(vec![
+        InstructionMeta {
+            program_id: DRIFT_PROGRAM_ID.to_string(),
+            account_meta: vec![
+                InstructionAccountMeta {
+                    pubkey: drift_state.clone(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: user.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: user_stats.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm.clone(),
+                    is_signer: true,
+                    is_writable: false,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm.clone(),
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccountMeta {
+                    pubkey: SPL_TOKEN2022_PROGRAM_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ],
+            data: Binary::new(deposit_data.to_vec()),
         }
-    }
-
-
-    Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
+    ])
 }
-*/
+
+pub fn create_place_order_ix(
+    sender_svm: String,
+    drift_state: String,
+    order_params: OrderParams,
+) -> StdResult<Vec<InstructionMeta>> {
+    let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+
+    let (user, _) = Pubkey::find_program_address(
+        &["user".as_bytes(), sender_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
+    
+    let order_param_bz = borsh::to_vec(&order_params).or_else(|e| Err(StdError::generic_err(format!("serialize order param err: {}", e.to_string()))))?;
+    let place_order_data = &[
+        [69, 161, 93, 202, 120, 126, 76, 185].as_slice(),
+        order_param_bz.as_slice(),
+    ].concat();
+    
+    Ok(vec![
+        InstructionMeta {
+            program_id: DRIFT_PROGRAM_ID.to_string(),
+            account_meta: vec![
+                InstructionAccountMeta {
+                    pubkey: drift_state,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: user.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm.clone(),
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ],
+            data: Binary::new(place_order_data.to_vec()),
+        }
+    ])
+}
+
+pub fn create_fill_order_jit_ix(
+    sender_svm: String,
+    drift_state: String,
+    order_params: String,
+    taker_order_id: u32,
+) -> StdResult<Vec<InstructionMeta>> {
+    let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+
+    let (user, _) = Pubkey::find_program_address(
+        &["user".as_bytes(), sender_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
+
+    let (user_stats, _) = Pubkey::find_program_address(
+        &["user_stats".as_bytes(), sender_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
+
+    
+    let order_param_bz = borsh::to_vec(&order_params).or_else(|e| Err(StdError::generic_err(format!("serialize order param err: {}", e.to_string()))))?;
+    let jit_fill_data = &[
+        [149, 158, 85, 66, 239, 9, 243, 98].as_slice(),
+        order_param_bz.as_slice(),
+        taker_order_id.to_le_bytes().as_slice(),
+    ].concat();
+    
+    Ok(vec![
+        InstructionMeta {
+            program_id: DRIFT_PROGRAM_ID.to_string(),
+            account_meta: vec![
+                InstructionAccountMeta {
+                    pubkey: drift_state.clone(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: user.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: user_stats.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm.clone(),
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ],
+            data: Binary::new(jit_fill_data.to_vec()),
+        }
+    ])
+}
+
+pub fn create_fill_order_vamm_ix(
+    sender_svm: String, 
+    drift_state: String,
+    order_params: String,
+) -> StdResult<Vec<InstructionMeta>> {
+    let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+
+    let (filler, _) = Pubkey::find_program_address(
+        &["filler".as_bytes(), sender_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find filler PDA"))?;
+
+    let (filler_stats, _) = Pubkey::find_program_address(
+        &["filler_stats".as_bytes(), sender_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find fillerstats PDA"))?;
+
+    // let order_param_bz = borsh::to_vec(&order_params).or_else(|e| Err(StdError::generic_err(format!("serialize order param err: {}", e.to_string()))))?;
+    let vamm_fill_data = &[
+        // TODO: Compose instruction to fill vAMM order here
+    ];
+    
+    Ok(vec![
+        InstructionMeta {
+            program_id: DRIFT_PROGRAM_ID.to_string(),
+            account_meta: vec![
+                InstructionAccountMeta {
+                    pubkey: drift_state.clone(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: filler.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: filler_stats.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm.clone(),
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ],
+            data: Binary::new(vamm_fill_data.to_vec()),
+        }
+    ])
+}
+
+#[derive(Default, Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq, Debug, Eq)]
+pub enum MarketType {
+    #[default]
+    Spot,
+    Perp,
+}
+
+#[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq, Debug, Eq, Default)]
+pub enum OrderType {
+    Market,
+    #[default]
+    Limit,
+    TriggerMarket,
+    TriggerLimit,
+    /// Market order where the auction prices are oracle offsets
+    Oracle,
+}
+
+#[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq, Debug, Eq, Default)]
+pub enum PositionDirection {
+    #[default]
+    Long,
+    Short,
+}
+
+#[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq, Debug, Eq, Default)]
+pub enum PostOnlyParam {
+    #[default]
+    None,
+    MustPostOnly, // Tx fails if order can't be post only
+    TryPostOnly,  // Tx succeeds and order not placed if can't be post only
+    Slide,        // Modify price to be post only if can't be post only
+}
+
+#[derive(Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq, Debug, Eq, Default)]
+pub enum OrderTriggerCondition {
+    #[default]
+    Above,
+    Below,
+    TriggeredAbove, // above condition has been triggered
+    TriggeredBelow, // below condition has been triggered
+}
+
+#[derive(Clone, Default, Copy, Eq, PartialEq, Debug, BorshSerialize, BorshDeserialize)]
+pub struct OrderParams {
+    pub order_type: OrderType,
+    pub market_type: MarketType,
+    pub direction: PositionDirection,
+    pub user_order_id: u8,
+    pub base_asset_amount: u64,
+    pub price: u64,
+    pub market_index: u16,
+    pub reduce_only: bool,
+    pub post_only: PostOnlyParam,
+    pub immediate_or_cancel: bool,
+    pub max_ts: Option<i64>,
+    pub trigger_price: Option<u64>,
+    pub trigger_condition: OrderTriggerCondition,
+    pub oracle_price_offset: Option<i32>, // price offset from oracle for order (~ +/- 2147 max)
+    pub auction_duration: Option<u8>,     // specified in slots
+    pub auction_start_price: Option<i64>, // specified in price or oracle_price_offset
+    pub auction_end_price: Option<i64>,   // specified in price or oracle_price_offset
+}

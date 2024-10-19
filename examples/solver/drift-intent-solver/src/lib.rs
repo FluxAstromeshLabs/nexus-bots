@@ -52,6 +52,7 @@ pub fn execute(
     Ok(Response::new().add_attribute("method", "execute"))
 }
 
+#[cw_serde]
 pub struct QueryMsg {
     msg: Binary,
     fis_input: Vec<FISInput>,
@@ -70,9 +71,8 @@ pub fn place_perp_market_order(
     auction_duration: u8,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
+    Ok(Binary::new(vec![]))
 }
-
-pub fn fill_order(deps: Deps, env: Env) {}
 
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -92,10 +92,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             auction_duration,
             &msg.fis_input,
         ),
-        NexusAction::FillMarketOrder {
-            taker_svm_address,
-            taker_order_id,
-            percent,
+        NexusAction::FillPerpMarketOrder {
         } => unreachable!(),
     }
 }
