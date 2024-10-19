@@ -86,32 +86,27 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     // 1. parse claimable reards
     let fis = &msg.fis_input[0];
+    let rewards_response =
+        from_json::<DelegationTotalRewardsResponse>(fis.data.first().unwrap()).unwrap();
 
-    if fis.data.len() == 0 {
+    let rewards = rewards_response.rewards;
+
+    if rewards.len() == 0 {
         return Err(StdError::generic_err(
             format!("No rewards to claim").as_str(),
         ));
     }
 
-    let delegator_address = env.contract.address.clone().into_string();
+    let delegator_address = env.contract.address.to_string();
 
-    for idx in 0..fis.data.len() {
-        let rewards_response =
-            from_json::<DelegationTotalRewardsResponse>(fis.data[idx].clone()).unwrap();
-
-        let rewards = rewards_response.rewards;
-        let totals = rewards_response.total;
-
-        let validator_address = rewards[0].validator_address.clone();
-        let reward = &rewards[0].reward[0];
+    for idx in 0..rewards.len() {
+        let validator_address = rewards[idx].validator_address.clone();
+        let reward = &rewards[idx].reward[0];
         let reward_amount_uint256 = reward.amount.to_uint_floor();
         let reward_amount = reward_amount_uint256
             .to_string()
             .parse::<Uint128>()
             .unwrap();
-
-        let total_amount_uint256 = totals[0].amount.to_uint_floor();
-        let total_amount = total_amount_uint256.to_string().parse::<Uint128>().unwrap();
 
         // 2. compose cosmos msg to claim rewards
         let claim_reward = MsgWithdrawDelegatorReward {
@@ -134,7 +129,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             validator_address,
             amount: vec![Coin {
                 denom: "usdt".to_string(),
-                amount: (reward_amount + total_amount).into(),
+                amount: reward_amount.into(),
             }],
         };
 
