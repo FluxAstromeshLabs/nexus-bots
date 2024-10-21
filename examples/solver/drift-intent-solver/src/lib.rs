@@ -10,7 +10,6 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 use std::vec::Vec;
 mod astromesh;
-mod constants;
 mod drift;
 mod svm;
 
@@ -71,6 +70,23 @@ pub fn place_perp_market_order(
     auction_duration: u8,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
+    // 1. initialize account
+    // 2. deposit usdt
+    // 3. place order
+    Ok(Binary::new(vec![]))
+}
+
+pub fn fill_perp_market_order(
+    deps: Deps,
+    env: Env,
+    market: String,
+    order_id: u32,
+    // more params if necessary
+    fis_input: &Vec<FISInput>,
+) -> StdResult<Binary> {
+    // 1. check if order is in auction time or not
+    // 2. if it's in auction time, use JIT
+    // 3. otherwise, fill with vAMM
     Ok(Binary::new(vec![]))
 }
 
@@ -92,7 +108,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             auction_duration,
             &msg.fis_input,
         ),
-        NexusAction::FillPerpMarketOrder {
-        } => unreachable!(),
+        NexusAction::FillPerpMarketOrder {} => unreachable!(),
     }
 }

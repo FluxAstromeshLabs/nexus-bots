@@ -80,7 +80,7 @@ impl TransactionBuilder {
     }
 
     pub fn build(&self, cosmos_signers: Vec<String>, compute_budget: u64) -> MsgTransaction {
-        // Step 1: Collect unique accounts and assign indices using BTreeMap
+        // Collect unique accounts and assign indices using BTreeMap
         let mut account_map: BTreeMap<String, u32> = BTreeMap::new();
         let mut accounts: Vec<String> = Vec::new();
         let mut current_index: u32 = 0;
@@ -129,7 +129,7 @@ impl TransactionBuilder {
                 });
             }
 
-            // Create Instruction
+            // Create instructions
             instructions.push(Instruction {
                 program_index: vec![program_idx],
                 accounts: instruction_accounts,
