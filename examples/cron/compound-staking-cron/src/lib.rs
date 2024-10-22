@@ -119,7 +119,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             plane: "COSMOS".to_string(),
             action: "COSMOS_INVOKE".to_string(),
             address: "".to_string(),
-            msg: to_json_vec(&claim_reward).unwrap().to_vec(),
+            msg: to_json_vec(&claim_reward).unwrap(),
         });
 
         // 3. compose cosmos msg to stake the claimed rewards
@@ -137,7 +137,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             plane: "COSMOS".to_string(),
             action: "COSMOS_INVOKE".to_string(),
             address: "".to_string(),
-            msg: to_json_vec(&stake_reward).unwrap().to_vec(),
+            msg: to_json_vec(&stake_reward).unwrap(),
         });
     }
 
