@@ -37,7 +37,7 @@ pub struct MsgDelegate {
     pub ty: String,
     pub delegator_address: String,
     pub validator_address: String,
-    pub amount: Vec<Coin>,
+    pub amount: Coin,
 }
 
 #[cw_serde]
@@ -127,10 +127,10 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             ty: "/cosmos.staking.v1beta1.MsgDelegate".to_string(),
             delegator_address: delegator_address.clone(),
             validator_address,
-            amount: vec![Coin {
-                denom: "usdt".to_string(),
+            amount: Coin {
+                denom: "lux".to_string(),
                 amount: reward_amount.into(),
-            }],
+            },
         };
 
         instructions.push(FISInstruction {
