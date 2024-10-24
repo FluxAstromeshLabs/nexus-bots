@@ -14,7 +14,7 @@ use drift::{
 };
 use std::collections::HashMap;
 use std::vec::Vec;
-use svm::{Pubkey, TransactionBuilder};
+use svm::{Pubkey, TransactionBuilder, AccountLink, Link};
 mod astromesh;
 mod drift;
 mod svm;
@@ -90,7 +90,8 @@ pub fn place_perp_market_order(
     let mut instructions = vec![];
 
     let fis = &fis_input[0];
-    let svm_pubkey = from_json::<String>(fis.data.first().unwrap())?;
+    let acc_link = from_json::<AccountLink>(fis.data.first().unwrap())?;
+    let svm_pubkey = acc_link.link.svm_addr;
     let cosmos_signer = env.contract.address.to_string();
     
     let user_order_id = 1u8;
