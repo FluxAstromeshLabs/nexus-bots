@@ -51,12 +51,14 @@ pub struct Instruction {
     pub data: Binary,
 }
 
+#[derive(Clone, Default)]
 pub struct InstructionAccountMeta {
     pub pubkey: String,
     pub is_signer: bool,
     pub is_writable: bool,
 }
 
+#[derive(Clone, Default)]
 pub struct InstructionMeta {
     pub program_id: String,
     pub account_meta: Vec<InstructionAccountMeta>,

@@ -56,7 +56,9 @@ pub enum NexusAction {
         auction_duration: u8,
     },
     FillPerpMarketOrder {
-        // TBU
+        taker_svm_address: String,
+        taker_order_id: u32,
+        percent: u8,
     },
 }
 

@@ -206,13 +206,17 @@ fn get_all_oracles_and_markets() -> Vec<InstructionAccountMeta> {
             pubkey: oracle_id.to_string(),
             is_signer: false,
             is_writable: false,
-        }).collect();
+        })
+        .collect();
 
-    let all_markets: Vec<InstructionAccountMeta> = ALL_MARKETS.iter().map(|id| InstructionAccountMeta {
-        pubkey: id.to_string(),
-        is_signer: false,
-        is_writable: true,
-    }).collect();
+    let all_markets: Vec<InstructionAccountMeta> = ALL_MARKETS
+        .iter()
+        .map(|id| InstructionAccountMeta {
+            pubkey: id.to_string(),
+            is_signer: false,
+            is_writable: true,
+        })
+        .collect();
 
     all_oracles.extend(all_markets);
     all_oracles
@@ -281,7 +285,7 @@ pub fn create_place_order_ix(
 pub fn create_fill_order_jit_ix(
     sender_svm: String,
     drift_state: String,
-    order_params: String,
+    order_params: OrderParams,
     taker_order_id: u32,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
@@ -349,7 +353,7 @@ pub fn create_fill_order_vamm_ix(
     sender_svm: String,
     taker_svm: String,
     drift_state: String,
-    order_params: String,
+    order_params: OrderParams,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
