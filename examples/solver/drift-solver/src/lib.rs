@@ -1,7 +1,7 @@
 use astromesh::{
     FISInput, FISInstruction, NexusAction,
 };
-use chrono::{Duration, Utc};
+use time::{OffsetDateTime, Duration};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env,
@@ -112,7 +112,8 @@ pub fn place_perp_market_order(
     // 3. place order
     let market_index = get_all_market_indexes(drift_program_id)?;
 
-    let expire_time = (Utc::now() + Duration::minutes(1)).timestamp();
+    let expire_time = (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp();
+
     let asset_amount = usdt_amount.i128() as u64 * leverage as u64;
 
     let order_params = OrderParams {
