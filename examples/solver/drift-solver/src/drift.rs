@@ -352,10 +352,11 @@ pub fn create_fill_order_jit_ix(
 pub fn create_fill_order_vamm_ix(
     sender_svm: String,
     taker_svm: String,
+    taker_order_id: u32,
     drift_state: String,
-    order_params: OrderParams,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let taker_pubkey = Pubkey::from_string(&taker_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
 
     let (filler, _) = Pubkey::find_program_address(
@@ -365,47 +366,71 @@ pub fn create_fill_order_vamm_ix(
     .ok_or_else(|| StdError::generic_err("failed to find filler PDA"))?;
 
     let (filler_stats, _) = Pubkey::find_program_address(
-        &["user_stats".as_bytes(), sender_pubkey.0.as_slice()],
+        &["user_stats".as_bytes(), sender_pubkey.0.as_slice(), &[0, 0]],
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find fillerstats PDA"))?;
 
-    // let order_param_bz = borsh::to_vec(&order_params).or_else(|e| Err(StdError::generic_err(format!("serialize order param err: {}", e.to_string()))))?;
-    let vamm_fill_data = &[
-        // TODO: Compose instruction to fill vAMM order here
+    let (taker, _) = Pubkey::find_program_address(
+        &["user".as_bytes(), taker_pubkey.0.as_slice(), &[0, 0]],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find taker PDA"))?;
+
+    let (taker_stats, _) = Pubkey::find_program_address(
+        &["user_stats".as_bytes(), taker_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find takerstats PDA"))?;
+
+    let fill_data = &[
+        &[13, 188, 248, 103, 134, 217, 106, 240],
+        [0, 0, 0, 1].as_slice(), taker_order_id.to_le_bytes().as_slice(),
+    ].concat();
+
+    let mut account_meta = vec![
+        InstructionAccountMeta {
+            pubkey: drift_state.clone(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: sender_svm.to_string(),
+            is_signer: true,
+            is_writable: false,
+        },
+        InstructionAccountMeta {
+            pubkey: filler.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: filler_stats.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: taker.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: taker_stats.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
     ];
 
-    Ok(vec![InstructionMeta {
+    let all_oracles_markets = get_all_oracles_and_markets();
+    account_meta.extend(all_oracles_markets);
+
+    let instruction_meta = InstructionMeta {
         program_id: DRIFT_PROGRAM_ID.to_string(),
-        account_meta: vec![
-            InstructionAccountMeta {
-                pubkey: drift_state.clone(),
-                is_signer: false,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: filler.to_string(),
-                is_signer: false,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: filler_stats.to_string(),
-                is_signer: false,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: sender_svm.clone(),
-                is_signer: true,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: SYSTEM_PROGRAM_ID.to_string(),
-                is_signer: false,
-                is_writable: false,
-            },
-        ],
-        data: Binary::new(vamm_fill_data.to_vec()),
-    }])
+        account_meta,
+        data: Binary::new(fill_data.to_vec()),
+    };
+
+    Ok(vec![instruction_meta])
 }
 
 #[derive(Default, Clone, Copy, BorshSerialize, BorshDeserialize, PartialEq, Debug, Eq)]
