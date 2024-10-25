@@ -18,6 +18,7 @@ use svm::{Pubkey, TransactionBuilder, AccountLink, Link};
 mod astromesh;
 mod drift;
 mod svm;
+mod test;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
