@@ -21,7 +21,6 @@ pub struct AccountLink {
     pub link: Link,
 }
 
-
 #[cw_serde]
 pub struct Account {
     pub pubkey: Binary,
@@ -138,7 +137,7 @@ impl TransactionBuilder {
                     None => {
                         instruction_acc_map.insert(meta.pubkey.clone(), i as u32);
                         i as u32
-                    },
+                    }
                 };
 
                 let id_index = account_map.get(&meta.pubkey).unwrap();

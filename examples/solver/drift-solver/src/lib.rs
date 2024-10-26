@@ -1,20 +1,18 @@
-use astromesh::{
-    FISInput, FISInstruction, NexusAction,
-};
-use borsh::BorshDeserialize;
-use time::{OffsetDateTime, Duration};
+use astromesh::{FISInput, FISInstruction, NexusAction};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env,
-    Int128, MessageInfo, Response, StdError, StdResult, Uint64,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, Int128,
+    MessageInfo, Response, StdError, StdResult, Uint64,
 };
 use drift::{
-    create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix, create_initialize_user_ixs, create_place_order_ix, MarketType, OrderParams, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, User, DRIFT_PROGRAM_ID
+    create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix,
+    create_initialize_user_ixs, create_place_order_ix, MarketType, OrderParams,
+    OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, User, DRIFT_PROGRAM_ID,
 };
-use core::slice::SlicePattern;
 use std::collections::HashMap;
 use std::vec::Vec;
-use svm::{Pubkey, TransactionBuilder, AccountLink, Link};
+use svm::{AccountLink, Link, Pubkey, TransactionBuilder};
+use time::{Duration, OffsetDateTime};
 mod astromesh;
 mod drift;
 mod svm;
@@ -57,9 +55,7 @@ pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
 }
 
-pub fn get_all_market_indexes(
-    drift_program_id: Pubkey,
-) -> StdResult<HashMap<String, u16>> {
+pub fn get_all_market_indexes(drift_program_id: Pubkey) -> StdResult<HashMap<String, u16>> {
     let mut market_indexes = HashMap::new();
     for idx in 0u16..4 {
         let (market, _) = Pubkey::find_program_address(
@@ -94,7 +90,7 @@ pub fn place_perp_market_order(
     let acc_link = from_json::<AccountLink>(fis.data.first().unwrap())?;
     let svm_pubkey = acc_link.link.svm_addr;
     let cosmos_signer = env.contract.address.to_string();
-    
+
     let user_order_id = 1u8;
 
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
@@ -181,26 +177,27 @@ pub fn fill_perp_market_order(
     let user_info_bz = fis_input.get(0).unwrap().data.get(0).unwrap();
     const USER_DISCRIMINATOR: &[u8] = &[159, 117, 95, 227, 239, 151, 58, 236];
     if !user_info_bz[..8].starts_with(USER_DISCRIMINATOR) {
-        return Err(StdError::generic_err(format!("invalid user discriminator, expected: {:?}", USER_DISCRIMINATOR)))
+        return Err(StdError::generic_err(format!(
+            "invalid user discriminator, expected: {:?}",
+            USER_DISCRIMINATOR
+        )));
     }
 
-    let user_info = borsh::from_slice::<User>(&user_info_bz[8..]).expect("must be parsed as drift::User");
-    let order = user_info.orders.iter().find(|x| x.order_id == taker_order_id).expect(format!("taker order id {} must exist", taker_order_id).as_str());
+    let user_info =
+        borsh::from_slice::<User>(&user_info_bz[8..]).expect("must be parsed as drift::User");
+    let order = user_info
+        .orders
+        .iter()
+        .find(|x| x.order_id == taker_order_id)
+        .expect(format!("taker order id {} must exist", taker_order_id).as_str());
 
     let mut tx_builder = TransactionBuilder::new();
     if !is_in_auction_time(env.block.height, order.slot, order.auction_duration) {
         // fill against vAMM
-        let fill_vamm = create_fill_order_vamm_ix(
-            sender_svm,
-            taker_svm, 
-            taker_order_id,
-        )?;
+        let fill_vamm = create_fill_order_vamm_ix(sender_svm, taker_svm, taker_order_id)?;
 
         tx_builder.add_instructions(fill_vamm);
-        let msg = tx_builder.build(
-            vec![env.contract.address.to_string()], 
-            10_000_000,
-        );
+        let msg = tx_builder.build(vec![env.contract.address.to_string()], 10_000_000);
 
         let instruction = FISInstruction {
             plane: "SVM".to_string(),
@@ -208,15 +205,54 @@ pub fn fill_perp_market_order(
             address: "".to_string(),
             msg: to_json_vec(&msg)?,
         };
-        return to_json_binary(&StrategyOutput { 
-            instructions: vec![instruction],    
-        })
+        return to_json_binary(&StrategyOutput {
+            instructions: vec![instruction],
+        });
     }
-    let amount_to_fill = (order.base_asset_amount - order.base_asset_amount_filled) * (percent as u64) / 100;
-    let fill_jit = create_fill_order_jit_ix(sender_svm, drift_state, order_params, taker_order_id) // WIP
-    
-    Ok(Binary::new(vec![]))
-    // Ok(to_json_binary(&StrategyOutput { instructions })?)
+    let amount_to_fill =
+        (order.base_asset_amount - order.base_asset_amount_filled) * (percent as u64) / 100;
+
+    let direction = match order.direction {
+        PositionDirection::Long => PositionDirection::Short,
+        PositionDirection::Short => PositionDirection::Long,
+    };
+
+    let order_params = OrderParams {
+        order_type: OrderType::Market,
+        market_type: MarketType::Perp,
+        direction: direction,
+        user_order_id: 0,
+        base_asset_amount: amount_to_fill,
+        price: order.price,
+        market_index: order.market_index,
+        reduce_only: false,             // ReduceOnly is false
+        post_only: PostOnlyParam::None, // PostOnly is 0, which we'll assume means None
+        immediate_or_cancel: true,
+        max_ts: Some(env.block.time.plus_minutes(5).seconds() as i64),
+        trigger_price: Some(0),
+        trigger_condition: OrderTriggerCondition::Above, // TriggerCondition is 0, which we'll assume is None
+        oracle_price_offset: Some(0),
+        auction_duration: Some(100),
+        auction_start_price: None, // AuctionStartPrice is 65020000000
+        auction_end_price: None,   // AuctionEndPrice is 65033000000
+    };
+
+    let fill_jit_ixs =
+        create_fill_order_jit_ix(sender_svm, order_params, taker_svm, taker_order_id)?;
+
+    tx_builder.add_instructions(fill_jit_ixs);
+    tx_builder.build(vec![env.contract.address.to_string()], 10_000_000);
+
+    let msg = tx_builder.build(vec![env.contract.address.to_string()], 10_000_000);
+    let instruction = FISInstruction {
+        plane: "SVM".to_string(),
+        action: "VM_INVOKE".to_string(),
+        address: "".to_string(),
+        msg: to_json_vec(&msg)?,
+    };
+    return to_json_binary(&StrategyOutput {
+        instructions: vec![instruction],
+    });
 }
 
 #[entry_point]
@@ -228,11 +264,26 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             usdt_amount,
             leverage,
             auction_duration,
-        } => place_perp_market_order(deps, env, market, usdt_amount, leverage, auction_duration, &msg.fis_input),
+        } => place_perp_market_order(
+            deps,
+            env,
+            market,
+            usdt_amount,
+            leverage,
+            auction_duration,
+            &msg.fis_input,
+        ),
         NexusAction::FillPerpMarketOrder {
             taker_svm_address,
             taker_order_id,
             percent,
-        } => fill_perp_market_order(deps, env, taker_svm_address, taker_order_id, percent, &msg.fis_input),
+        } => fill_perp_market_order(
+            deps,
+            env,
+            taker_svm_address,
+            taker_order_id,
+            percent,
+            &msg.fis_input,
+        ),
     }
 }

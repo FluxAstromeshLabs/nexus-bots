@@ -1,6 +1,4 @@
-use cosmwasm_std::{
-    Binary, StdError, StdResult,
-};
+use cosmwasm_std::{Binary, StdError, StdResult};
 
 use crate::svm::{
     InstructionAccountMeta, InstructionMeta, Pubkey, SPL_TOKEN2022_PROGRAM_ID, SYSTEM_PROGRAM_ID,
@@ -225,10 +223,12 @@ fn get_all_oracles_and_markets() -> Vec<InstructionAccountMeta> {
 
 pub fn create_place_order_ix(
     sender_svm: String,
-    drift_state: String,
+    taker_svm: String,
     order_params: OrderParams,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let taker_pubkey = Pubkey::from_string(&taker_svm)?;
+
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
     let (user, _) = Pubkey::find_program_address(
         &["user".as_bytes(), sender_pubkey.0.as_slice()],
@@ -254,7 +254,7 @@ pub fn create_place_order_ix(
 
     let mut account_meta = vec![
         InstructionAccountMeta {
-            pubkey: drift_state.clone(),
+            pubkey: DRIFT_STATE.to_string(),
             is_signer: false,
             is_writable: true,
         },
@@ -285,15 +285,16 @@ pub fn create_place_order_ix(
 
 pub fn create_fill_order_jit_ix(
     sender_svm: String,
-    drift_state: String,
     order_params: OrderParams,
+    taker_svm: String,
     taker_order_id: u32,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let taker_pubkey = Pubkey::from_string(&taker_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
-
+    let subaccount_id = &[0, 0];
     let (user, _) = Pubkey::find_program_address(
-        &["user".as_bytes(), sender_pubkey.0.as_slice()],
+        &["user".as_bytes(), sender_pubkey.0.as_slice(), subaccount_id],
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
@@ -303,6 +304,18 @@ pub fn create_fill_order_jit_ix(
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
+
+    let (taker_user, _) = Pubkey::find_program_address(
+        &["user".as_bytes(), taker_pubkey.0.as_slice(), subaccount_id],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find taker user PDA"))?;
+
+    let (taker_user_stats, _) = Pubkey::find_program_address(
+        &["user_stats".as_bytes(), taker_pubkey.0.as_slice()],
+        &drift_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find taker userstats PDA"))?;
 
     let order_param_bz = borsh::to_vec(&order_params).or_else(|e| {
         Err(StdError::generic_err(format!(
@@ -321,7 +334,7 @@ pub fn create_fill_order_jit_ix(
         program_id: DRIFT_PROGRAM_ID.to_string(),
         account_meta: vec![
             InstructionAccountMeta {
-                pubkey: drift_state.clone(),
+                pubkey: DRIFT_STATE.to_string(),
                 is_signer: false,
                 is_writable: true,
             },
@@ -385,8 +398,10 @@ pub fn create_fill_order_vamm_ix(
 
     let fill_data = &[
         &[13, 188, 248, 103, 134, 217, 106, 240],
-        [1].as_slice(), taker_order_id.to_le_bytes().as_slice(),
-    ].concat();
+        [1].as_slice(),
+        taker_order_id.to_le_bytes().as_slice(),
+    ]
+    .concat();
 
     let mut account_meta = vec![
         InstructionAccountMeta {

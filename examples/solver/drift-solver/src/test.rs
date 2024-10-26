@@ -2,7 +2,16 @@
 mod tests {
     use cosmwasm_std::Binary;
 
-    use crate::{drift::{create_place_order_ix, Example, MarketType, OrderParams, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, User}, svm::{Instruction, InstructionAccount, InstructionAccountMeta, InstructionMeta, TransactionBuilder}};
+    use crate::{
+        drift::{
+            create_place_order_ix, Example, MarketType, OrderParams, OrderTriggerCondition,
+            OrderType, PositionDirection, PostOnlyParam, User,
+        },
+        svm::{
+            Instruction, InstructionAccount, InstructionAccountMeta, InstructionMeta,
+            TransactionBuilder,
+        },
+    };
 
     #[test]
     fn test_build_transaction() {
@@ -68,7 +77,7 @@ mod tests {
         let compute_budget = 1000;
         // Build the transaction
         let transaction = tx_builder.build(cosmos_signers, compute_budget);
-        
+
         // Assertions for instructions
         assert_eq!(transaction.instructions.len(), 2);
 
@@ -135,36 +144,50 @@ mod tests {
         let user_data = Binary::from_base64(&user_data_b64).unwrap();
         let user: User = borsh::from_slice(&user_data.as_slice()[8..]).unwrap();
 
-        assert_eq!(user.authority.to_string(), "EWFZJuFzfx1bdWH5wa67KL1joEvYhGF5m6cL9mjHp1V", "authority mismatch");
+        assert_eq!(
+            user.authority.to_string(),
+            "EWFZJuFzfx1bdWH5wa67KL1joEvYhGF5m6cL9mjHp1V",
+            "authority mismatch"
+        );
     }
 
     #[test]
     fn test_encode_order_param() {
         let order_params = OrderParams {
-            order_type: OrderType::Market, // OrderType is 0, which we'll assume is Limit
+            order_type: OrderType::Market,
             market_type: MarketType::Perp, // MarketType is 1, which we'll assume is Perp
             direction: PositionDirection::Long, // Direction is 0, which we'll assume is Long
-            user_order_id: 4, // UserOrderId is 4
-            base_asset_amount: 500000, // BaseAssetAmount is 500000
-            price: 65033000000, // Price is 65033000000
-            market_index: 0, // MarketIndex is 0
-            reduce_only: false, // ReduceOnly is false
+            user_order_id: 4,              // UserOrderId is 4
+            base_asset_amount: 500000,     // BaseAssetAmount is 500000
+            price: 65033000000,            // Price is 65033000000
+            market_index: 0,               // MarketIndex is 0
+            reduce_only: false,            // ReduceOnly is false
             post_only: PostOnlyParam::None, // PostOnly is 0, which we'll assume means None
-            immediate_or_cancel: false, // ImmediateOrCancel is false
-            max_ts: Some(1729870673), // MaxTs is 1729870673
-            trigger_price: Some(0), // TriggerPrice is 0
+            immediate_or_cancel: false,    // ImmediateOrCancel is false
+            max_ts: Some(1729870673),      // MaxTs is 1729870673
+            trigger_price: Some(0),        // TriggerPrice is 0
             trigger_condition: OrderTriggerCondition::Above, // TriggerCondition is 0, which we'll assume is None
-            oracle_price_offset: Some(0), // OraclePriceOffset is 0
-            auction_duration: Some(10), // AuctionDuration is 10
-            auction_start_price: Some(65020000000), // AuctionStartPrice is 65020000000
-            auction_end_price: Some(65033000000), // AuctionEndPrice is 65033000000
+            oracle_price_offset: Some(0),                    // OraclePriceOffset is 0
+            auction_duration: Some(10),                      // AuctionDuration is 10
+            auction_start_price: Some(65020000000),          // AuctionStartPrice is 65020000000
+            auction_end_price: Some(65033000000),            // AuctionEndPrice is 65033000000
         };
-        
-        let ix = create_place_order_ix(
-            "7WrZxBiKCMGuzLCW2VwKK7sQjhTZLbDe5sKfJsEcARpF".to_string(), 
-            "2GKUdmaBJNjfCucDT14HrsWchVrm3yvj4QY2jjnUEg3v".to_string(), order_params
-        ).unwrap();
 
-        assert_eq!(ix.get(0).unwrap().data.to_vec(), [69, 161, 93, 202, 120, 126, 76, 185, 0, 1, 0, 4, 32, 161, 7, 0, 0, 0, 0, 0, 64, 212, 68, 36, 15, 0, 0, 0, 0, 0, 0, 0, 0, 1, 81, 187, 27, 103, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 10, 1, 0, 119, 126, 35, 15, 0, 0, 0, 1, 64, 212, 68, 36, 15, 0, 0, 0]);
+        let ix = create_place_order_ix(
+            "7WrZxBiKCMGuzLCW2VwKK7sQjhTZLbDe5sKfJsEcARpF".to_string(),
+            "2GKUdmaBJNjfCucDT14HrsWchVrm3yvj4QY2jjnUEg3v".to_string(),
+            order_params,
+        )
+        .unwrap();
+
+        assert_eq!(
+            ix.get(0).unwrap().data.to_vec(),
+            [
+                69, 161, 93, 202, 120, 126, 76, 185, 0, 1, 0, 4, 32, 161, 7, 0, 0, 0, 0, 0, 64,
+                212, 68, 36, 15, 0, 0, 0, 0, 0, 0, 0, 0, 1, 81, 187, 27, 103, 0, 0, 0, 0, 1, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 10, 1, 0, 119, 126, 35, 15, 0, 0, 0, 1, 64,
+                212, 68, 36, 15, 0, 0, 0
+            ]
+        );
     }
 }
