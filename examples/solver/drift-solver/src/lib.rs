@@ -9,10 +9,9 @@ use cosmwasm_std::{
     Int128, MessageInfo, Response, StdError, StdResult, Uint64,
 };
 use drift::{
-    create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix,
-    create_initialize_user_ixs, create_place_order_ix, MarketType, OrderParams,
-    OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, DRIFT_PROGRAM_ID,
+    create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix, create_initialize_user_ixs, create_place_order_ix, MarketType, OrderParams, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, User, DRIFT_PROGRAM_ID
 };
+use core::slice::SlicePattern;
 use std::collections::HashMap;
 use std::vec::Vec;
 use svm::{Pubkey, TransactionBuilder, AccountLink, Link};
@@ -73,8 +72,8 @@ pub fn get_all_market_indexes(
     Ok(market_indexes)
 }
 
-pub fn is_in_auction_time(height: u64, order_creation_slot: u64, auction_period: u64) -> bool {
-    if height < order_creation_slot + auction_period {
+pub fn is_in_auction_time(height: u64, order_creation_slot: u64, auction_period: u8) -> bool {
+    if height < order_creation_slot + (auction_period as u64) {
         return true;
     }
     false
@@ -173,105 +172,49 @@ pub fn place_perp_market_order(
 pub fn fill_perp_market_order(
     deps: Deps,
     env: Env,
-    taker_svm_address: String,
+    taker_svm: String,
     taker_order_id: u32,
     percent: u8,
+    fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
-    // let mut instructions = vec![];
+    let sender_svm = "".to_string(); // sender svm
+    let user_info_bz = fis_input.get(0).unwrap().data.get(0).unwrap();
+    const USER_DISCRIMINATOR: &[u8] = &[159, 117, 95, 227, 239, 151, 58, 236];
+    if !user_info_bz[..8].starts_with(USER_DISCRIMINATOR) {
+        return Err(StdError::generic_err(format!("invalid user discriminator, expected: {:?}", USER_DISCRIMINATOR)))
+    }
 
-    // let height = env.block.height;
-    // let cosmos_signer = env.contract.address.to_string();
+    let user_info = borsh::from_slice::<User>(&user_info_bz[8..]).expect("must be parsed as drift::User");
+    let order = user_info.orders.iter().find(|x| x.order_id == taker_order_id).expect(format!("taker order id {} must exist", taker_order_id).as_str());
+
+    let mut tx_builder = TransactionBuilder::new();
+    if !is_in_auction_time(env.block.height, order.slot, order.auction_duration) {
+        // fill against vAMM
+        let fill_vamm = create_fill_order_vamm_ix(
+            sender_svm,
+            taker_svm, 
+            taker_order_id,
+        )?;
+
+        tx_builder.add_instructions(fill_vamm);
+        let msg = tx_builder.build(
+            vec![env.contract.address.to_string()], 
+            10_000_000,
+        );
+
+        let instruction = FISInstruction {
+            plane: "SVM".to_string(),
+            action: "VM_INVOKE".to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&msg)?,
+        };
+        return to_json_binary(&StrategyOutput { 
+            instructions: vec![instruction],    
+        })
+    }
+    let amount_to_fill = (order.base_asset_amount - order.base_asset_amount_filled) * (percent as u64) / 100;
+    let fill_jit = create_fill_order_jit_ix(sender_svm, drift_state, order_params, taker_order_id) // WIP
     
-    // // get from taker order id
-    // let order_creation_slot = 0u64;
-    // let total = 1000000000u64;
-    // let market = String::from("BTC");
-
-    // // generate order
-    // let user_order_id = 0u8;
-
-    // let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
-    // let (drift_state, _) =
-    //     Pubkey::find_program_address(&["drift_state".as_bytes()], &drift_program_id)
-    //         .ok_or_else(|| StdError::generic_err("failed to find drift state PDA"))?;
-
-    // let market_index = get_all_market_indexes(deps, drift_program_id)?;
-    // let expire_time = (Utc::now() + Duration::minutes(1)).timestamp();
-    // let asset_amount = total * percent as u64;
-
-    // let order_params = OrderParams {
-    //     order_type: OrderType::Market,
-    //     market_type: MarketType::Perp,
-    //     direction: PositionDirection::Long,
-    //     user_order_id: user_order_id,
-    //     base_asset_amount: asset_amount,
-    //     price: 0u64,
-    //     market_index: market_index[&market],
-    //     reduce_only: false,
-    //     post_only: PostOnlyParam::None,
-    //     immediate_or_cancel: false,
-    //     max_ts: Some(expire_time),
-    //     trigger_price: Some(0),
-    //     trigger_condition: OrderTriggerCondition::Above,
-    //     oracle_price_offset: Some(0),
-    //     auction_duration: Some(0),
-    //     auction_start_price: Some(asset_amount.try_into().unwrap()),
-    //     auction_end_price: Some(asset_amount.try_into().unwrap()),
-    // };
-
-    // // 1. check if order is in auction time or not
-    // if is_in_auction_time(
-    //     height,
-    //     order_creation_slot,
-    //     order_params.max_ts.unwrap().try_into().unwrap(),
-    // ) {
-    //     // 2. if it's in auction time, use JIT
-    //     let jit_ix = create_fill_order_jit_ix(
-    //         svm_pubkey.clone(),
-    //         drift_state.to_string(),
-    //         order_params,
-    //         taker_order_id,
-    //     )?;
-
-    //     let mut tx = TransactionBuilder::new();
-
-    //     for idx in 0..jit_ix.len() {
-    //         tx.add_instruction(jit_ix[idx].clone());
-    //     }
-
-    //     let msg = tx.build(vec![svm_pubkey], 5000000u64.into());
-
-    //     instructions.push(FISInstruction {
-    //         plane: "COSMOS".to_string(),
-    //         action: "COSMOS_INVOKE".to_string(),
-    //         address: "".to_string(),
-    //         msg: to_json_vec(&msg)?,
-    //     });
-    // } else {
-    //     // 3. otherwise, fill with vAMM
-    //     let fill_ix = create_fill_order_vamm_ix(
-    //         svm_pubkey.clone(),
-    //         taker_svm_address.clone(),
-    //         drift_state.to_string(),
-    //         order_params,
-    //     )?;
-
-    //     let mut tx = TransactionBuilder::new();
-
-    //     for idx in 0..fill_ix.len() {
-    //         tx.add_instruction(fill_ix[idx].clone());
-    //     }
-
-    //     let msg = tx.build(vec![cosmos_signer], 5000000u64.into());
-
-    //     instructions.push(FISInstruction {
-    //         plane: "COSMOS".to_string(),
-    //         action: "COSMOS_INVOKE".to_string(),
-    //         address: "".to_string(),
-    //         msg: to_json_vec(&msg)?,
-    //     });
-    // }
-
     Ok(Binary::new(vec![]))
     // Ok(to_json_binary(&StrategyOutput { instructions })?)
 }
@@ -290,6 +233,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             taker_svm_address,
             taker_order_id,
             percent,
-        } => fill_perp_market_order(deps, env, taker_svm_address, taker_order_id, percent),
+        } => fill_perp_market_order(deps, env, taker_svm_address, taker_order_id, percent, &msg.fis_input),
     }
 }

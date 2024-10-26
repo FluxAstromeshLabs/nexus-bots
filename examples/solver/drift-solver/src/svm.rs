@@ -21,6 +21,17 @@ pub struct AccountLink {
     pub link: Link,
 }
 
+
+#[cw_serde]
+pub struct Account {
+    pub pubkey: Binary,
+    pub owner: Binary,
+    pub lamports: Uint64, // JSON cdc returns string (with quotes), standard u64 can't be parsed
+    pub data: Binary,
+    pub executable: bool,
+    pub rent_epoch: Uint64,
+}
+
 #[cw_serde]
 pub struct MsgTransaction {
     /// Sender is the address of the actor that signed the message
@@ -79,6 +90,11 @@ impl TransactionBuilder {
 
     pub fn add_instruction(&mut self, ix: InstructionMeta) -> &mut Self {
         self.instructions.push(ix);
+        self
+    }
+
+    pub fn add_instructions(&mut self, ixs: Vec<InstructionMeta>) -> &mut Self {
+        self.instructions.extend(ixs);
         self
     }
 

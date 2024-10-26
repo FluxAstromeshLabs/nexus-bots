@@ -1,7 +1,5 @@
-use std::default;
-
 use cosmwasm_std::{
-    Binary, Decimal256, DelegationResponse, DelegationTotalRewardsResponse, StdError, StdResult,
+    Binary, StdError, StdResult,
 };
 
 use crate::svm::{
@@ -14,6 +12,7 @@ pub const DRIFT_PROGRAM_ID: &str = "FLR3mfYrMZUnhqEadNJVwjUhjX8ky9vE9qTtDmkK4vwC
 pub const ORACLE_BTC: &str = "3HRnxmtHQrHkooPdFZn5ZQbPTKGvBSyoTi4VVkkoT6u6";
 pub const ORACLE_ETH: &str = "2S8JS8K4E7EYnXaoVABFWG3wkxKKaVWEVKZ8GiyinBuS";
 pub const ORACLE_SOL: &str = "362SGYeXLRddaacjbyRuXPc1iewF1FrZpRpkyw72LHAM";
+pub const DRIFT_STATE: &str = "HYEM9xMiSVsGzwEVRhX3WHH9CB2sFeHnWhyZUR4KVr8c";
 
 pub const ALL_MARKETS: &[&str] = &[
     "GbMqWisskNfP9ZY53cy8eZNK16sg89FKCo4yzpRhFZ2",
@@ -355,7 +354,6 @@ pub fn create_fill_order_vamm_ix(
     sender_svm: String,
     taker_svm: String,
     taker_order_id: u32,
-    drift_state: String,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let taker_pubkey = Pubkey::from_string(&taker_svm)?;
@@ -387,12 +385,12 @@ pub fn create_fill_order_vamm_ix(
 
     let fill_data = &[
         &[13, 188, 248, 103, 134, 217, 106, 240],
-        [0, 0, 0, 1].as_slice(), taker_order_id.to_le_bytes().as_slice(),
+        [1].as_slice(), taker_order_id.to_le_bytes().as_slice(),
     ].concat();
 
     let mut account_meta = vec![
         InstructionAccountMeta {
-            pubkey: drift_state.clone(),
+            pubkey: DRIFT_STATE.to_string(),
             is_signer: false,
             is_writable: true,
         },
@@ -723,4 +721,9 @@ pub struct User {
     pub padding1: [u8; 5],
     pub last_fuel_bonus_update_ts: u32,
     pub padding: [u8; 12],
+}
+
+#[derive(Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Debug, Default)]
+pub struct Example {
+    pub a: Option<u32>,
 }
