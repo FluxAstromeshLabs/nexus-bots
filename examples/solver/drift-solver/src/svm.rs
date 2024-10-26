@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, StdError, Uint64};
 use sha2::{Digest, Sha256};
@@ -154,7 +155,7 @@ impl TransactionBuilder {
 
 // === crypto utils ===
 
-#[derive(Debug)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Default)]
 pub struct Pubkey(pub [u8; 32]);
 
 pub enum PubkeyError {
