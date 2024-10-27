@@ -1,8 +1,7 @@
-use astromesh::{FISInput, FISInstruction, NexusAction};
+use astromesh::{FISInput, FISInstruction, MsgAstroTransfer, NexusAction};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, Int128,
-    MessageInfo, Response, StdError, StdResult, Uint64,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, MessageInfo, Response, StdError, StdResult, Uint128, Uint64
 };
 use drift::{
     create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix,
@@ -99,13 +98,13 @@ pub fn place_perp_market_order(
             .ok_or_else(|| StdError::generic_err("failed to find drift state PDA"))?;
 
     // 1. initialize account
-    let initialize_ix = create_initialize_user_ixs(svm_pubkey.clone(), drift_state.to_string())?;
+    let initialize_ix = create_initialize_user_ixs(svm_pubkey.clone())?;
 
     // 2. deposit usdt
     let deposit_amount: u64 = 1_000_000_000;
 
     let deposit_ix =
-        create_deposit_usdt_ix(svm_pubkey.clone(), drift_state.to_string(), deposit_amount)?;
+        create_deposit_usdt_ix(svm_pubkey.clone(), deposit_amount)?;
 
     // 3. place order
     let market_index = get_all_market_indexes(drift_program_id)?;
@@ -173,16 +172,14 @@ pub fn fill_perp_market_order(
     percent: u8,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
+    let sender = env.contract.address.to_string();
     let sender_svm_link = from_json::<AccountLink>(fis_input.get(0).unwrap().data.get(0).unwrap())?; // sender svm
     let sender_svm = sender_svm_link.link.svm_addr;
     let taker_info = from_json::<Account>(fis_input.get(1).unwrap().data.get(0).unwrap())?;
     if taker_info.lamports.is_zero() {
         return Err(StdError::generic_err("taker subaccount is not initialized"));
     }
-
     let taker_info_bz = taker_info.data;
-    deps.api.debug(format!("user descriminator: {:?}", taker_info_bz[..8].to_vec()).as_str());
-    deps.api.debug(format!("filler user descriminator: {:?}", fis_input.get(1).unwrap().data.get(1)).as_str());
     const USER_DISCRIMINATOR: &[u8] = &[159, 117, 95, 227, 239, 151, 58, 236];
     if !taker_info_bz[..8].starts_with(USER_DISCRIMINATOR) {
         return Err(StdError::generic_err(format!(
@@ -191,21 +188,31 @@ pub fn fill_perp_market_order(
         )));
     }
 
-    let user_info =
+    let sender_info = fis_input.get(1).unwrap().data.get(1).unwrap();
+    let mut fis_instructions = vec![];
+    let mut tx_builder = TransactionBuilder::new();
+
+    // if subaccount is not created, create it
+    if sender_info.starts_with("null".as_bytes()) {
+        let initialize_ixs = create_initialize_user_ixs(sender_svm.clone())?;
+        tx_builder.add_instructions(initialize_ixs);
+    }
+
+    deps.api.debug(format!("user descriminator: {:?}", taker_info_bz[..8].to_vec()).as_str());
+    deps.api.debug(format!("filler user descriminator: {:?}", fis_input.get(1).unwrap().data.get(1)).as_str());
+    let taker_info =
         borsh::from_slice::<User>(&taker_info_bz[8..]).expect("must be parsed as drift::User");
-    let order = user_info
+    let order = taker_info
         .orders
         .iter()
         .find(|x| x.order_id == taker_order_id)
         .expect(format!("taker order id {} must exist", taker_order_id).as_str());
-
-    let mut tx_builder = TransactionBuilder::new();
     if !is_in_auction_time(env.block.height, order.slot, order.auction_duration) {
         // fill against vAMM
         let fill_vamm = create_fill_order_vamm_ix(sender_svm, taker_svm, taker_order_id)?;
 
         tx_builder.add_instructions(fill_vamm);
-        let msg = tx_builder.build(vec![env.contract.address.to_string()], 10_000_000);
+        let msg = tx_builder.build(vec![sender.clone()], 10_000_000);
 
         let instruction = FISInstruction {
             plane: "SVM".to_string(),
@@ -251,6 +258,21 @@ pub fn fill_perp_market_order(
     tx_builder.add_instructions(fill_jit_ixs);
     tx_builder.build(vec![env.contract.address.to_string()], 10_000_000);
 
+    // transfer usdt from cosmos > svm
+    let cosmos_transfer = MsgAstroTransfer::new(
+        sender.clone(), sender,  "COSMOS".to_string(), "SVM".to_string(), Coin {
+            denom: "usdt".to_string(),
+            amount: Uint128::from(amount_to_fill),
+        },
+    );
+    fis_instructions.push(FISInstruction {
+        plane: "COSMOS".to_string(),
+        action: "COSMOS_INVOKE".to_string(),
+        address: "".to_string(),
+        msg: to_json_vec(&cosmos_transfer)?,
+    });
+
+    // do drift instructions
     let msg = tx_builder.build(vec![env.contract.address.to_string()], 10_000_000);
     let instruction = FISInstruction {
         plane: "SVM".to_string(),
@@ -258,8 +280,10 @@ pub fn fill_perp_market_order(
         address: "".to_string(),
         msg: to_json_vec(&msg)?,
     };
+    fis_instructions.push(instruction);
+
     return to_json_binary(&StrategyOutput {
-        instructions: vec![instruction],
+        instructions: fis_instructions,
     });
 }
 

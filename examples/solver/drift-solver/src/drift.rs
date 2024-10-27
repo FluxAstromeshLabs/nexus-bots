@@ -22,7 +22,6 @@ pub const ALL_MARKETS: &[&str] = &[
 
 pub fn create_initialize_user_ixs(
     sender_svm: String,
-    drift_state: String,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
@@ -56,14 +55,14 @@ pub fn create_initialize_user_ixs(
                     is_writable: true,
                 },
                 InstructionAccountMeta {
-                    pubkey: drift_state.clone(),
+                    pubkey: DRIFT_STATE.to_string(),
                     is_signer: false,
                     is_writable: true,
                 },
                 InstructionAccountMeta {
                     pubkey: sender_svm.clone(),
                     is_signer: true,
-                    is_writable: false,
+                    is_writable: true,
                 },
                 InstructionAccountMeta {
                     pubkey: sender_svm.clone(),
@@ -97,7 +96,7 @@ pub fn create_initialize_user_ixs(
                     is_writable: true,
                 },
                 InstructionAccountMeta {
-                    pubkey: drift_state,
+                    pubkey: DRIFT_STATE.to_string(),
                     is_signer: false,
                     is_writable: true,
                 },
@@ -129,7 +128,6 @@ pub fn create_initialize_user_ixs(
 
 pub fn create_deposit_usdt_ix(
     sender_svm: String,
-    drift_state: String,
     amount: u64,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
@@ -159,7 +157,7 @@ pub fn create_deposit_usdt_ix(
         program_id: DRIFT_PROGRAM_ID.to_string(),
         account_meta: vec![
             InstructionAccountMeta {
-                pubkey: drift_state.clone(),
+                pubkey: DRIFT_STATE.to_string(),
                 is_signer: false,
                 is_writable: true,
             },
