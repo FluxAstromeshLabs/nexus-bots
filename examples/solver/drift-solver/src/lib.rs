@@ -11,7 +11,7 @@ use drift::{
 };
 use std::collections::HashMap;
 use std::vec::Vec;
-use svm::{AccountLink, Link, Pubkey, TransactionBuilder};
+use svm::{Account, AccountLink, Link, Pubkey, TransactionBuilder};
 use time::{Duration, OffsetDateTime};
 mod astromesh;
 mod drift;
@@ -173,10 +173,18 @@ pub fn fill_perp_market_order(
     percent: u8,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
-    let sender_svm = "".to_string(); // sender svm
-    let user_info_bz = fis_input.get(0).unwrap().data.get(0).unwrap();
+    let sender_svm_link = from_json::<AccountLink>(fis_input.get(0).unwrap().data.get(0).unwrap())?; // sender svm
+    let sender_svm = sender_svm_link.link.svm_addr;
+    let taker_info = from_json::<Account>(fis_input.get(1).unwrap().data.get(0).unwrap())?;
+    if taker_info.lamports.is_zero() {
+        return Err(StdError::generic_err("taker subaccount is not initialized"));
+    }
+
+    let taker_info_bz = taker_info.data;
+    deps.api.debug(format!("user descriminator: {:?}", taker_info_bz[..8].to_vec()).as_str());
+    deps.api.debug(format!("filler user descriminator: {:?}", fis_input.get(1).unwrap().data.get(1)).as_str());
     const USER_DISCRIMINATOR: &[u8] = &[159, 117, 95, 227, 239, 151, 58, 236];
-    if !user_info_bz[..8].starts_with(USER_DISCRIMINATOR) {
+    if !taker_info_bz[..8].starts_with(USER_DISCRIMINATOR) {
         return Err(StdError::generic_err(format!(
             "invalid user discriminator, expected: {:?}",
             USER_DISCRIMINATOR
@@ -184,7 +192,7 @@ pub fn fill_perp_market_order(
     }
 
     let user_info =
-        borsh::from_slice::<User>(&user_info_bz[8..]).expect("must be parsed as drift::User");
+        borsh::from_slice::<User>(&taker_info_bz[8..]).expect("must be parsed as drift::User");
     let order = user_info
         .orders
         .iter()
@@ -220,7 +228,7 @@ pub fn fill_perp_market_order(
     let order_params = OrderParams {
         order_type: OrderType::Market,
         market_type: MarketType::Perp,
-        direction: direction,
+        direction,
         user_order_id: 0,
         base_asset_amount: amount_to_fill,
         price: order.price,

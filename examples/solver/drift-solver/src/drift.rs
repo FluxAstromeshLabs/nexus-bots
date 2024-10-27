@@ -323,6 +323,7 @@ pub fn create_fill_order_jit_ix(
             e.to_string()
         )))
     })?;
+
     let jit_fill_data = &[
         [149, 158, 85, 66, 239, 9, 243, 98].as_slice(),
         order_param_bz.as_slice(),
@@ -349,14 +350,19 @@ pub fn create_fill_order_jit_ix(
                 is_writable: true,
             },
             InstructionAccountMeta {
-                pubkey: sender_svm.clone(),
-                is_signer: true,
+                pubkey: taker_user.to_string(),
+                is_signer: false,
                 is_writable: true,
             },
             InstructionAccountMeta {
-                pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                pubkey: taker_user_stats.to_string(),
                 is_signer: false,
-                is_writable: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: sender_svm.clone(),
+                is_signer: true,
+                is_writable: true,
             },
         ],
         data: Binary::new(jit_fill_data.to_vec()),
@@ -371,21 +377,22 @@ pub fn create_fill_order_vamm_ix(
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let taker_pubkey = Pubkey::from_string(&taker_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+    let subacc_index = &0u16.to_le_bytes();
 
     let (filler, _) = Pubkey::find_program_address(
-        &["user".as_bytes(), sender_pubkey.0.as_slice()], // TODO: Verify here when we actually implement it
+        &["user".as_bytes(), sender_pubkey.0.as_slice(), subacc_index], // TODO: Verify here when we actually implement it
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find filler PDA"))?;
 
     let (filler_stats, _) = Pubkey::find_program_address(
-        &["user_stats".as_bytes(), sender_pubkey.0.as_slice(), &[0, 0]],
+        &["user_stats".as_bytes(), sender_pubkey.0.as_slice()],
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find fillerstats PDA"))?;
 
     let (taker, _) = Pubkey::find_program_address(
-        &["user".as_bytes(), taker_pubkey.0.as_slice(), &[0, 0]],
+        &["user".as_bytes(), taker_pubkey.0.as_slice(), subacc_index],
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find taker PDA"))?;
@@ -400,6 +407,7 @@ pub fn create_fill_order_vamm_ix(
         &[13, 188, 248, 103, 134, 217, 106, 240],
         [1].as_slice(),
         taker_order_id.to_le_bytes().as_slice(),
+        [0].as_slice(),
     ]
     .concat();
 
