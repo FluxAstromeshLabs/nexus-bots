@@ -1,7 +1,7 @@
-use astromesh::{FISInput, FISInstruction, NexusAction, MsgAstroTransfer};
+use astromesh::{FISInput, FISInstruction, MsgAstroTransfer, NexusAction};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, Int128, Coin,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128,
     MessageInfo, Response, StdError, StdResult, Uint64,
 };
 use drift::{
@@ -74,7 +74,6 @@ pub fn astro_transfer(cosmos_addr: String, amount: u64) -> Vec<FISInstruction> {
         },
     );
 
-
     instructions.push(FISInstruction {
         plane: "COSMOS".to_string(),
         action: "COSMOS_INVOKE".to_string(),
@@ -125,9 +124,13 @@ pub fn place_perp_market_order(
     let deposit_amount: u64 = 1_000_000_000;
     let astro_transfer_ix = astro_transfer(cosmos_addr.clone(), 1_000_000_000);
     instructions.extend(astro_transfer_ix);
-    
-    let deposit_ix =
-        create_deposit_usdt_ix(deps, svm_addr.clone(), drift_state.to_string(), deposit_amount)?;
+
+    let deposit_ix = create_deposit_usdt_ix(
+        deps,
+        svm_addr.clone(),
+        drift_state.to_string(),
+        deposit_amount,
+    )?;
 
     for idx in 0..deposit_ix.len() {
         tx.add_instruction(deposit_ix[idx].clone());
@@ -181,7 +184,7 @@ pub fn place_perp_market_order(
     }
 
     let msg = tx.build(vec![cosmos_addr], compute_budget.into());
-    
+
     deps.api.debug(&format!("msg {:?}", msg));
 
     instructions.push(FISInstruction {
