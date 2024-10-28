@@ -7,7 +7,8 @@ const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 pub const SPL_TOKEN2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 pub const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
 pub const SYS_VAR_RENT_ID: &str = "SysvarRent111111111111111111111111111111111";
-
+pub const MINT: &str = "C3xXmrQWWnTmYABa8YTKrYU5jkonkTwz1qQCJbVX3mQh";
+pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 #[cw_serde]
 pub struct Link {
     pub cosmos_addr: String,

@@ -4,7 +4,7 @@ use cosmwasm_std::{
 
 use crate::svm::{
     InstructionAccountMeta, InstructionMeta, Pubkey, SPL_TOKEN2022_PROGRAM_ID, SYSTEM_PROGRAM_ID,
-    SYS_VAR_RENT_ID,
+    SYS_VAR_RENT_ID, MINT, ASSOCIATED_TOKEN_PROGRAM_ID,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -41,7 +41,7 @@ pub fn create_initialize_user_ixs(
     )
     .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
 
-    deps.api.debug(&format!("user: {}, userstats: {}", user.to_string(), userstats.to_string()));
+    // deps.api.debug(&format!("user: {}, userstats: {}", user.to_string(), userstats.to_string()));
 
     let initialize_user_stat_data = &[254, 243, 72, 98, 251, 130, 168, 213];
     let initialize_user_data = [
@@ -67,7 +67,7 @@ pub fn create_initialize_user_ixs(
                 InstructionAccountMeta {
                     pubkey: sender_svm.clone(),
                     is_signer: true,
-                    is_writable: false,
+                    is_writable: true,
                 },
                 InstructionAccountMeta {
                     pubkey: sender_svm.clone(),
@@ -87,59 +87,61 @@ pub fn create_initialize_user_ixs(
             ],
             data: Binary::new(initialize_user_stat_data.to_vec()),
         },
-        // InstructionMeta {
-        //     program_id: DRIFT_PROGRAM_ID.to_string(),
-        //     account_meta: vec![
-        //         InstructionAccountMeta {
-        //             pubkey: user.to_string(),
-        //             is_signer: false,
-        //             is_writable: true,
-        //         },
-        //         InstructionAccountMeta {
-        //             pubkey: userstats.to_string(),
-        //             is_signer: false,
-        //             is_writable: true,
-        //         },
-        //         InstructionAccountMeta {
-        //             pubkey: drift_state,
-        //             is_signer: false,
-        //             is_writable: true,
-        //         },
-        //         InstructionAccountMeta {
-        //             pubkey: sender_svm.clone(),
-        //             is_signer: true,
-        //             is_writable: false,
-        //         },
-        //         InstructionAccountMeta {
-        //             pubkey: sender_svm,
-        //             is_signer: true,
-        //             is_writable: true,
-        //         },
-        //         InstructionAccountMeta {
-        //             pubkey: SYS_VAR_RENT_ID.to_string(),
-        //             is_signer: false,
-        //             is_writable: false,
-        //         },
-        //         InstructionAccountMeta {
-        //             pubkey: SYSTEM_PROGRAM_ID.to_string(),
-        //             is_signer: false,
-        //             is_writable: false,
-        //         },
-        //     ],
-            // data: Binary::new(initialize_user_data),
-        // },
+        InstructionMeta {
+            program_id: DRIFT_PROGRAM_ID.to_string(),
+            account_meta: vec![
+                InstructionAccountMeta {
+                    pubkey: user.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: userstats.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: drift_state,
+                    is_signer: false,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm.clone(),
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: sender_svm,
+                    is_signer: true,
+                    is_writable: true,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYS_VAR_RENT_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+                InstructionAccountMeta {
+                    pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                    is_signer: false,
+                    is_writable: false,
+                },
+            ],
+            data: Binary::new(initialize_user_data),
+        },
     ])
 }
 
 pub fn create_deposit_usdt_ix(
+    deps: Deps,
     sender_svm: String,
     drift_state: String,
     amount: u64,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+    let subacc_index = 0u16.to_le_bytes();
     let (user, _) = Pubkey::find_program_address(
-        &["user".as_bytes(), sender_pubkey.0.as_slice()],
+        &["user".as_bytes(), sender_pubkey.0.as_slice(), &subacc_index],
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
@@ -152,11 +154,24 @@ pub fn create_deposit_usdt_ix(
 
     let market_index = 0u16;
 
-    let (spot_market, _) = Pubkey::find_program_address(
-        &["spot_market".as_bytes(), market_index.to_le_bytes().as_slice()],
+    let (spot_market_vault, _) = Pubkey::find_program_address(
+        &["spot_market_vault".as_bytes(), &market_index.to_le_bytes().as_slice()],
         &drift_program_id,
     ) 
+    .ok_or_else(|| StdError::generic_err("failed to find spot market vault PDA"))?;
+
+    let (spot_market, _) = Pubkey::find_program_address(
+        &["spot_market".as_bytes(), &market_index.to_le_bytes().as_slice()],
+        &drift_program_id,
+    )
     .ok_or_else(|| StdError::generic_err("failed to find spot market PDA"))?;
+
+    let associated_token_program_id = Pubkey::from_string(&ASSOCIATED_TOKEN_PROGRAM_ID.to_string())?;
+    let (user_token_account, _) = Pubkey::find_program_address(
+        &[sender_pubkey.0.as_slice(), SPL_TOKEN2022_PROGRAM_ID.as_bytes(), MINT.as_bytes()],
+        &associated_token_program_id,
+    )
+    .ok_or_else(|| StdError::generic_err("failed to find user token account PDA"))?;
 
     let deposit_data = &[
         [242, 35, 198, 137, 82, 225, 242, 182].as_slice(),
@@ -166,6 +181,12 @@ pub fn create_deposit_usdt_ix(
     ]
     .concat();
 
+    deps.api.debug(&format!("user_stats {}", user_stats.to_string()));
+    deps.api.debug(&format!("user {}", user.to_string()));
+    deps.api.debug(&format!("sender_svm {}", sender_svm));
+    deps.api.debug(&format!("spot_market {}", spot_market.to_string()));
+    deps.api.debug(&format!("spot_market_vault {}", spot_market_vault.to_string()));
+    deps.api.debug(&format!("user_token_account {}", user_token_account.to_string()));
 
     Ok(vec![InstructionMeta {
         program_id: DRIFT_PROGRAM_ID.to_string(),
@@ -188,27 +209,27 @@ pub fn create_deposit_usdt_ix(
             InstructionAccountMeta {
                 pubkey: sender_svm.clone(),
                 is_signer: true,
-                is_writable: false,
-            },
-            InstructionAccountMeta {
-                pubkey: sender_svm.clone(),
-                is_signer: true,
                 is_writable: true,
             },
             InstructionAccountMeta {
-                pubkey: spot_market.to_string(),
+                pubkey: spot_market_vault.to_string(),
                 is_signer: false,
                 is_writable: true,
             },
             InstructionAccountMeta {
-                pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                pubkey: user_token_account.to_string(),
                 is_signer: false,
-                is_writable: false,
+                is_writable: true,
             },
             InstructionAccountMeta {
                 pubkey: SPL_TOKEN2022_PROGRAM_ID.to_string(),
                 is_signer: false,
                 is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: spot_market.to_string(),
+                is_signer: false,
+                is_writable: true,
             },
         ],
         data: Binary::new(deposit_data.to_vec()),
@@ -245,8 +266,9 @@ pub fn create_place_order_ix(
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+    let subacc_index = 0u16.to_le_bytes();
     let (user, _) = Pubkey::find_program_address(
-        &["user".as_bytes(), sender_pubkey.0.as_slice()],
+        &["user".as_bytes(), sender_pubkey.0.as_slice(), &subacc_index],
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
@@ -282,11 +304,6 @@ pub fn create_place_order_ix(
             pubkey: sender_svm.clone(),
             is_signer: true,
             is_writable: true,
-        },
-        InstructionAccountMeta {
-            pubkey: SYSTEM_PROGRAM_ID.to_string(),
-            is_signer: false,
-            is_writable: false,
         },
     ];
     account_meta.extend(all_oracles_markets);

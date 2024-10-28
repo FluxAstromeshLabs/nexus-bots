@@ -1,7 +1,7 @@
-use astromesh::{FISInput, FISInstruction, NexusAction};
+use astromesh::{FISInput, FISInstruction, NexusAction, MsgAstroTransfer};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, Int128,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, Int128, Coin,
     MessageInfo, Response, StdError, StdResult, Uint64,
 };
 use drift::{
@@ -60,6 +60,45 @@ pub fn is_in_auction_time(height: u64, order_creation_slot: u64, auction_period:
     false
 }
 
+pub fn astro_transfer(svm_addr: String, amount: u64) -> Vec<FISInstruction> {
+    let mut instructions = vec![];
+    let plane_cosmos = "0".to_string();
+    let plane_svm = "3".to_string();
+
+    let msg1 = MsgAstroTransfer::new(
+        svm_addr.clone(),
+        svm_addr.clone(),
+        plane_cosmos.clone(),
+        plane_svm.clone(),
+        Coin {
+            denom: "btc".to_string(),
+            amount: amount.into(),
+        },
+    );
+
+    let msg2 = MsgAstroTransfer::new(
+        svm_addr.clone(),
+        svm_addr.clone(),
+        plane_cosmos.clone(),
+        plane_svm.clone(),
+        Coin {
+            denom: "usdt".to_string(),
+            amount: amount.into(),
+        },
+    );
+
+    let transfer_ix = vec![msg1, msg2];
+
+    instructions.push(FISInstruction {
+        plane: "COSMOS".to_string(),
+        action: "COSMOS_INVOKE".to_string(),
+        address: "".to_string(),
+        msg: to_json_vec(&transfer_ix).unwrap(),
+    });
+
+    instructions
+}
+
 pub fn place_perp_market_order(
     deps: Deps,
     env: Env,
@@ -90,19 +129,18 @@ pub fn place_perp_market_order(
     let deposit_amount: u64 = 1_000_000_000;
 
     let deposit_ix =
-        create_deposit_usdt_ix(svm_addr.clone(), drift_state.to_string(), deposit_amount)?;
+        create_deposit_usdt_ix(deps, svm_addr.clone(), drift_state.to_string(), deposit_amount)?;
 
     // 3. place order
-
     let expire_time = env.block.time.seconds() as i64 + auction_duration as i64;
 
     let asset_amount = usdt_amount.i128() as u64 * leverage as u64;
 
     let market_index: u16;
     match market.as_str() {
-        "btc" => market_index = 0,
-        "eth" => market_index = 1,
-        "sol" => market_index = 2,
+        "btc-usdt" => market_index = 0,
+        "eth-usdt" => market_index = 1,
+        "sol-usdt" => market_index = 2,
         default => {
             return Err(StdError::generic_err(format!(
                 "market {} is not supported",
@@ -138,13 +176,13 @@ pub fn place_perp_market_order(
 
     let mut tx = TransactionBuilder::new();
 
-    for idx in 0..initialize_ix.len() {
-        tx.add_instruction(initialize_ix[idx].clone());
-    }
-
-    // for idx in 0..deposit_ix.len() {
-    //     tx.add_instruction(deposit_ix[idx].clone());
+    // for idx in 0..initialize_ix.len() {
+    //     tx.add_instruction(initialize_ix[idx].clone());
     // }
+
+    for idx in 0..deposit_ix.len() {
+        tx.add_instruction(deposit_ix[idx].clone());
+    }
 
     // for idx in 0..place_order_ix.len() {
     //     tx.add_instruction(place_order_ix[idx].clone());
@@ -152,6 +190,9 @@ pub fn place_perp_market_order(
 
     let msg = tx.build(vec![cosmos_addr], compute_budget.into());
 
+    let astro_transfer_ix = astro_transfer(svm_addr.clone(), 10000000000);
+    instructions.extend(astro_transfer_ix);
+    
     deps.api.debug(&format!("msg {:?}", msg));
 
     instructions.push(FISInstruction {
