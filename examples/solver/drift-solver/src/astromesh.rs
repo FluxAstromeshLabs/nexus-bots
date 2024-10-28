@@ -52,6 +52,7 @@ pub enum NexusAction {
     PlacePerpMarketOrder {
         usdt_amount: Int128,
         leverage: u8,
+<<<<<<< HEAD:examples/solver/drift-solver/src/astromesh.rs
         market: String,
         auction_duration: u8,
     },
@@ -59,6 +60,12 @@ pub enum NexusAction {
         taker_svm_address: String,
         taker_order_id: u32,
         percent: u8,
+=======
+        auction_duration: u8,
+    },
+    FillPerpMarketOrder {
+        // TBU
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/astromesh.rs
     },
 }
 

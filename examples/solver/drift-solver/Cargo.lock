@@ -61,7 +61,11 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "derivative",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
+=======
+ "digest 0.10.7",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "itertools",
  "num-bigint",
  "num-traits",
@@ -115,7 +119,11 @@ checksum = "adb7b85a02b83d2f22f89bd5cac66c9c89474240cb6207cb1efc16d098e822a5"
 dependencies = [
  "ark-serialize-derive",
  "ark-std",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
+=======
+ "digest 0.10.7",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "num-bigint",
 ]
 
@@ -137,7 +145,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94893f1e0c6eeab764ade8dc4c0db24caf4fe7cbbaafc0eba0a9030f447b5185"
 dependencies = [
  "num-traits",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "rand",
+=======
+ "rand 0.8.5",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "rayon",
 ]
 
@@ -167,6 +179,18 @@ checksum = "d965446196e3b7decd44aa7ee49e31d630118f90ef12f97900f262eb915c951d"
 
 [[package]]
 name = "block-buffer"
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
+name = "block-buffer"
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
@@ -251,15 +275,25 @@ dependencies = [
  "ark-ff",
  "ark-serialize",
  "cosmwasm-core",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
+=======
+ "digest 0.10.7",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "ecdsa",
  "ed25519-zebra",
  "k256",
  "num-traits",
  "p256",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "rand_core",
  "rayon",
  "sha2",
+=======
+ "rand_core 0.6.4",
+ "rayon",
+ "sha2 0.10.8",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "thiserror",
 ]
 
@@ -312,11 +346,19 @@ dependencies = [
  "cosmwasm-derive",
  "derive_more",
  "hex",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "rand_core",
  "schemars",
  "serde",
  "serde-json-wasm",
  "sha2",
+=======
+ "rand_core 0.6.4",
+ "schemars",
+ "serde",
+ "serde-json-wasm",
+ "sha2 0.10.8",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "static_assertions",
  "thiserror",
 ]
@@ -362,7 +404,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0dc92fb57ca44df6db8059111ab3af99a63d5d0f8375d9972e319a379c6bab76"
 dependencies = [
  "generic-array",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "rand_core",
+=======
+ "rand_core 0.6.4",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "subtle",
  "zeroize",
 ]
@@ -379,6 +425,22 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b9fdf9972b2bd6af2d913799d9ebc165ea4d2e65878e329d9c6b372c4491b61"
+dependencies = [
+ "byteorder",
+ "digest 0.9.0",
+ "rand_core 0.5.1",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek"
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 version = "4.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
@@ -386,7 +448,11 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "curve25519-dalek-derive",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
+=======
+ "digest 0.10.7",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "fiat-crypto",
  "rustc_version",
  "subtle",
@@ -415,6 +481,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
 name = "deranged"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -424,6 +491,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -457,11 +526,27 @@ dependencies = [
 
 [[package]]
 name = "digest"
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
+name = "digest"
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "block-buffer",
+=======
+ "block-buffer 0.10.4",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "const-oid",
  "crypto-common",
  "subtle",
@@ -475,10 +560,17 @@ dependencies = [
  "bs58",
  "cosmwasm-schema",
  "cosmwasm-std",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "curve25519-dalek",
  "serde",
  "sha2",
  "time",
+=======
+ "curve25519-dalek 4.1.3",
+ "ed25519-dalek",
+ "serde",
+ "sha2 0.10.8",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -494,10 +586,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
 dependencies = [
  "der",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
  "elliptic-curve",
  "rfc6979",
  "signature",
+=======
+ "digest 0.10.7",
+ "elliptic-curve",
+ "rfc6979",
+ "signature 2.2.0",
+]
+
+[[package]]
+name = "ed25519"
+version = "1.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
+dependencies = [
+ "signature 1.6.4",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -506,7 +614,25 @@ version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "signature",
+=======
+ "signature 2.2.0",
+]
+
+[[package]]
+name = "ed25519-dalek"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c762bae6dcaf24c4c84667b8579785430908723d5c889f469d76a41d59cc7a9d"
+dependencies = [
+ "curve25519-dalek 3.2.0",
+ "ed25519 1.5.3",
+ "rand 0.7.3",
+ "serde",
+ "sha2 0.9.9",
+ "zeroize",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -515,12 +641,21 @@ version = "4.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d9ce6874da5d4415896cd45ffbc4d1cfc0c4f9c079427bd870742c30f2f65a9"
 dependencies = [
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "curve25519-dalek",
  "ed25519",
  "hashbrown 0.14.5",
  "hex",
  "rand_core",
  "sha2",
+=======
+ "curve25519-dalek 4.1.3",
+ "ed25519 2.2.3",
+ "hashbrown 0.14.5",
+ "hex",
+ "rand_core 0.6.4",
+ "sha2 0.10.8",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "zeroize",
 ]
 
@@ -538,11 +673,19 @@ checksum = "b5e6043086bf7973472e0c7dff2142ea0b680d30e18d9cc40f267efbf222bd47"
 dependencies = [
  "base16ct",
  "crypto-bigint",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
  "ff",
  "generic-array",
  "group",
  "rand_core",
+=======
+ "digest 0.10.7",
+ "ff",
+ "generic-array",
+ "group",
+ "rand_core 0.6.4",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "sec1",
  "subtle",
  "zeroize",
@@ -560,7 +703,11 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "rand_core",
+=======
+ "rand_core 0.6.4",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "subtle",
 ]
 
@@ -583,13 +730,31 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fc3cb4d91f53b50155bdcfd23f6a4c39ae1969c2ae85982b135750cccaf5fce"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "wasi 0.9.0+wasi-snapshot-preview1",
+]
+
+[[package]]
+name = "getrandom"
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4567c8db10ae91089c99af84c68c38da3ec2f087c3f82960bcdbf3656b6f4d7"
 dependencies = [
  "cfg-if",
  "libc",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "wasi",
+=======
+ "wasi 0.11.0+wasi-snapshot-preview1",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -599,7 +764,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
  "ff",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "rand_core",
+=======
+ "rand_core 0.6.4",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
  "subtle",
 ]
 
@@ -640,7 +809,11 @@ version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
+=======
+ "digest 0.10.7",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -677,7 +850,11 @@ dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "sha2",
+=======
+ "sha2 0.10.8",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -703,12 +880,15 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
 name = "num-conv"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
 
 [[package]]
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 name = "num-integer"
 version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -733,6 +913,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+name = "opaque-debug"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
+
+[[package]]
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 name = "p256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -741,7 +930,11 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "primeorder",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "sha2",
+=======
+ "sha2 0.10.8",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -751,12 +944,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
 name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 name = "ppv-lite86"
 version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -826,12 +1022,43 @@ dependencies = [
 
 [[package]]
 name = "rand"
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a6b1679d49b24bbfe0c803429aa1874472f50d9b363131f0e89fc356b544d03"
+dependencies = [
+ "getrandom 0.1.16",
+ "libc",
+ "rand_chacha 0.2.2",
+ "rand_core 0.5.1",
+ "rand_hc",
+]
+
+[[package]]
+name = "rand"
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "rand_chacha",
  "rand_core",
+=======
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4c8ed856279c9737206bf725bf36935d8666ead7aa69b52be55af369d193402"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.5.1",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -841,7 +1068,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "rand_core",
+=======
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
+dependencies = [
+ "getrandom 0.1.16",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -850,7 +1090,20 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "getrandom",
+=======
+ "getrandom 0.2.15",
+]
+
+[[package]]
+name = "rand_hc"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
+dependencies = [
+ "rand_core 0.5.1",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -995,23 +1248,57 @@ dependencies = [
 
 [[package]]
 name = "sha2"
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+version = "0.9.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d58a1e1bf39749807d89cf2d98ac2dfa0ff1cb3faa38fbb64dd88ac8013d800"
+dependencies = [
+ "block-buffer 0.9.0",
+ "cfg-if",
+ "cpufeatures",
+ "digest 0.9.0",
+ "opaque-debug",
+]
+
+[[package]]
+name = "sha2"
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
 dependencies = [
  "cfg-if",
  "cpufeatures",
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
+=======
+ "digest 0.10.7",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
 name = "signature"
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+version = "1.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74233d3b3b2f6d4b006dc19dee745e73e2a6bfb6f93607cd3b02bd5b00797d7c"
+
+[[package]]
+name = "signature"
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
  "digest",
  "rand_core",
+=======
+ "digest 0.10.7",
+ "rand_core 0.6.4",
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 ]
 
 [[package]]
@@ -1081,6 +1368,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
 name = "time"
 version = "0.3.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1100,6 +1388,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef927ca75afb808a4d64dd374f00a2adf8d0fcff8e7b184af886c3c87ec4a3f3"
 
 [[package]]
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 name = "toml_datetime"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1142,6 +1432,15 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "wasi"
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
+=======
+version = "0.9.0+wasi-snapshot-preview1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
+
+[[package]]
+name = "wasi"
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock
 version = "0.11.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
@@ -1195,8 +1494,11 @@ dependencies = [
  "quote",
  "syn 2.0.79",
 ]
+<<<<<<< HEAD:examples/solver/drift-solver/Cargo.lock
 
 [[patch.unused]]
 name = "curve25519-dalek"
 version = "3.2.1"
 source = "git+https://github.com/solana-labs/curve25519-dalek.git?rev=b500cdc2a920cd5bff9e2dd974d7b97349d61464#b500cdc2a920cd5bff9e2dd974d7b97349d61464"
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/Cargo.lock

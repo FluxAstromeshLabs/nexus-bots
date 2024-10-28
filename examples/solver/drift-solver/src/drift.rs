@@ -1,10 +1,18 @@
 use cosmwasm_std::{
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     Binary, Decimal256, DelegationResponse, DelegationTotalRewardsResponse, StdError, StdResult, Deps,
+=======
+    Binary, Decimal256, DelegationResponse, DelegationTotalRewardsResponse, StdError, StdResult,
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
 };
 
 use crate::svm::{
     InstructionAccountMeta, InstructionMeta, Pubkey, SPL_TOKEN2022_PROGRAM_ID, SYSTEM_PROGRAM_ID,
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     SYS_VAR_RENT_ID, MINT, ASSOCIATED_TOKEN_PROGRAM_ID,
+=======
+    SYS_VAR_RENT_ID,
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -22,7 +30,10 @@ pub const ALL_MARKETS: &[&str] = &[
 ];
 
 pub fn create_initialize_user_ixs(
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     deps: Deps,
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
     sender_svm: String,
     drift_state: String,
 ) -> StdResult<Vec<InstructionMeta>> {
@@ -41,8 +52,11 @@ pub fn create_initialize_user_ixs(
     )
     .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
 
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     // deps.api.debug(&format!("user: {}, userstats: {}", user.to_string(), userstats.to_string()));
 
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
     let initialize_user_stat_data = &[254, 243, 72, 98, 251, 130, 168, 213];
     let initialize_user_data = [
         [111, 17, 185, 250, 60, 122, 38, 254].as_slice(),
@@ -67,7 +81,11 @@ pub fn create_initialize_user_ixs(
                 InstructionAccountMeta {
                     pubkey: sender_svm.clone(),
                     is_signer: true,
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
                     is_writable: true,
+=======
+                    is_writable: false,
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
                 },
                 InstructionAccountMeta {
                     pubkey: sender_svm.clone(),
@@ -108,7 +126,11 @@ pub fn create_initialize_user_ixs(
                 InstructionAccountMeta {
                     pubkey: sender_svm.clone(),
                     is_signer: true,
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
                     is_writable: true,
+=======
+                    is_writable: false,
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
                 },
                 InstructionAccountMeta {
                     pubkey: sender_svm,
@@ -132,18 +154,27 @@ pub fn create_initialize_user_ixs(
 }
 
 pub fn create_deposit_usdt_ix(
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     deps: Deps,
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
     sender_svm: String,
     drift_state: String,
     amount: u64,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     let spl_token2022_pubkey = Pubkey::from_string(&SPL_TOKEN2022_PROGRAM_ID.to_string())?;
     let mint = Pubkey::from_string(&MINT.to_string())?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
     let subacc_index = 0u16.to_le_bytes();
     let (user, _) = Pubkey::find_program_address(
         &["user".as_bytes(), sender_pubkey.0.as_slice(), &subacc_index],
+=======
+    let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+    let (user, _) = Pubkey::find_program_address(
+        &["user".as_bytes(), sender_pubkey.0.as_slice()],
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
@@ -155,6 +186,7 @@ pub fn create_deposit_usdt_ix(
     .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
 
     let market_index = 0u16;
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
 
     let (spot_market_vault, _) = Pubkey::find_program_address(
         &["spot_market_vault".as_bytes(), &market_index.to_le_bytes().as_slice()],
@@ -175,6 +207,8 @@ pub fn create_deposit_usdt_ix(
     )
     .ok_or_else(|| StdError::generic_err("failed to find user token account PDA"))?;
 
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
     let deposit_data = &[
         [242, 35, 198, 137, 82, 225, 242, 182].as_slice(),
         market_index.to_le_bytes().as_slice(),
@@ -204,6 +238,7 @@ pub fn create_deposit_usdt_ix(
             InstructionAccountMeta {
                 pubkey: sender_svm.clone(),
                 is_signer: true,
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
                 is_writable: true,
             },
             InstructionAccountMeta {
@@ -215,17 +250,33 @@ pub fn create_deposit_usdt_ix(
                 pubkey: user_token_account.to_string(),
                 is_signer: false,
                 is_writable: true,
+=======
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: sender_svm.clone(),
+                is_signer: true,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: SYSTEM_PROGRAM_ID.to_string(),
+                is_signer: false,
+                is_writable: false,
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
             },
             InstructionAccountMeta {
                 pubkey: SPL_TOKEN2022_PROGRAM_ID.to_string(),
                 is_signer: false,
                 is_writable: false,
             },
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
             InstructionAccountMeta {
                 pubkey: spot_market.to_string(),
                 is_signer: false,
                 is_writable: true,
             },
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
         ],
         data: Binary::new(deposit_data.to_vec()),
     }])
@@ -238,6 +289,7 @@ fn get_all_oracles_and_markets() -> Vec<InstructionAccountMeta> {
             pubkey: oracle_id.to_string(),
             is_signer: false,
             is_writable: false,
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
         })
         .collect();
 
@@ -249,6 +301,15 @@ fn get_all_oracles_and_markets() -> Vec<InstructionAccountMeta> {
             is_writable: true,
         })
         .collect();
+=======
+        }).collect();
+
+    let all_markets: Vec<InstructionAccountMeta> = ALL_MARKETS.iter().map(|id| InstructionAccountMeta {
+        pubkey: id.to_string(),
+        is_signer: false,
+        is_writable: true,
+    }).collect();
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
 
     all_oracles.extend(all_markets);
     all_oracles
@@ -261,9 +322,14 @@ pub fn create_place_order_ix(
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     let subacc_index = 0u16.to_le_bytes();
     let (user, _) = Pubkey::find_program_address(
         &["user".as_bytes(), sender_pubkey.0.as_slice(), &subacc_index],
+=======
+    let (user, _) = Pubkey::find_program_address(
+        &["user".as_bytes(), sender_pubkey.0.as_slice()],
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
         &drift_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find user PDA"))?;
@@ -274,7 +340,10 @@ pub fn create_place_order_ix(
             e.to_string()
         )))
     })?;
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
 
+=======
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
     let place_order_data = &[
         [69, 161, 93, 202, 120, 126, 76, 185].as_slice(),
         order_param_bz.as_slice(),
@@ -301,6 +370,14 @@ pub fn create_place_order_ix(
             is_signer: true,
             is_writable: true,
         },
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
+=======
+        InstructionAccountMeta {
+            pubkey: SYSTEM_PROGRAM_ID.to_string(),
+            is_signer: false,
+            is_writable: false,
+        },
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
     ];
     account_meta.extend(all_oracles_markets);
 
@@ -314,7 +391,11 @@ pub fn create_place_order_ix(
 pub fn create_fill_order_jit_ix(
     sender_svm: String,
     drift_state: String,
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     order_params: OrderParams,
+=======
+    order_params: String,
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
     taker_order_id: u32,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
@@ -382,7 +463,11 @@ pub fn create_fill_order_vamm_ix(
     sender_svm: String,
     taker_svm: String,
     drift_state: String,
+<<<<<<< HEAD:examples/solver/drift-solver/src/drift.rs
     order_params: OrderParams,
+=======
+    order_params: String,
+>>>>>>> feat-bot-intent-solver:examples/solver/drift-intent-solver/src/drift.rs
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
