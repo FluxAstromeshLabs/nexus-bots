@@ -138,6 +138,8 @@ pub fn create_deposit_usdt_ix(
     amount: u64,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
+    let spl_token2022_pubkey = Pubkey::from_string(&SPL_TOKEN2022_PROGRAM_ID.to_string())?;
+    let mint = Pubkey::from_string(&MINT.to_string())?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
     let subacc_index = 0u16.to_le_bytes();
     let (user, _) = Pubkey::find_program_address(
@@ -168,7 +170,7 @@ pub fn create_deposit_usdt_ix(
 
     let associated_token_program_id = Pubkey::from_string(&ASSOCIATED_TOKEN_PROGRAM_ID.to_string())?;
     let (user_token_account, _) = Pubkey::find_program_address(
-        &[sender_pubkey.0.as_slice(), SPL_TOKEN2022_PROGRAM_ID.as_bytes(), MINT.as_bytes()],
+        &[sender_pubkey.0.as_slice(), spl_token2022_pubkey.0.as_slice(), mint.0.as_slice()],
         &associated_token_program_id,
     )
     .ok_or_else(|| StdError::generic_err("failed to find user token account PDA"))?;
@@ -180,13 +182,6 @@ pub fn create_deposit_usdt_ix(
         &[0],
     ]
     .concat();
-
-    deps.api.debug(&format!("user_stats {}", user_stats.to_string()));
-    deps.api.debug(&format!("user {}", user.to_string()));
-    deps.api.debug(&format!("sender_svm {}", sender_svm));
-    deps.api.debug(&format!("spot_market {}", spot_market.to_string()));
-    deps.api.debug(&format!("spot_market_vault {}", spot_market_vault.to_string()));
-    deps.api.debug(&format!("user_token_account {}", user_token_account.to_string()));
 
     Ok(vec![InstructionMeta {
         program_id: DRIFT_PROGRAM_ID.to_string(),
@@ -279,6 +274,7 @@ pub fn create_place_order_ix(
             e.to_string()
         )))
     })?;
+
     let place_order_data = &[
         [69, 161, 93, 202, 120, 126, 76, 185].as_slice(),
         order_param_bz.as_slice(),
