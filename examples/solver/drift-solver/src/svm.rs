@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, StdError, Uint64};
+use cosmwasm_std::{Binary, Deps, StdError, Uint64};
 use sha2::{Digest, Sha256};
 const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 pub const SPL_TOKEN2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 pub const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
-pub const SYS_VAR_RENT_ID: &str = "SysvarRent11111111111111111111111111111111";
-
+pub const SYS_VAR_RENT_ID: &str = "SysvarRent111111111111111111111111111111111";
+pub const MINT: &str = "C3xXmrQWWnTmYABa8YTKrYU5jkonkTwz1qQCJbVX3mQh";
+pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 #[cw_serde]
 pub struct Link {
     pub cosmos_addr: String,
@@ -51,12 +52,14 @@ pub struct Instruction {
     pub data: Binary,
 }
 
+#[derive(Clone, Default, Debug)]
 pub struct InstructionAccountMeta {
     pub pubkey: String,
     pub is_signer: bool,
     pub is_writable: bool,
 }
 
+#[derive(Clone, Default, Debug)]
 pub struct InstructionMeta {
     pub program_id: String,
     pub account_meta: Vec<InstructionAccountMeta>,
@@ -100,6 +103,7 @@ impl TransactionBuilder {
                 }
             }
         }
+
         // Transform instructions meta into instruction
         let mut instructions: Vec<Instruction> = Vec::new();
 
@@ -111,19 +115,21 @@ impl TransactionBuilder {
 
             // Transform account_meta to InstructionAccount
             let mut instruction_accounts: Vec<InstructionAccount> = Vec::new();
-
+            let mut instruction_acc_map: BTreeMap<String, u32> = BTreeMap::new();
             for (i, meta) in ix.account_meta.iter().enumerate() {
-                let account_idx = *account_map.get(&meta.pubkey).expect("Account not found");
+                let callee_index = match instruction_acc_map.get(&meta.pubkey) {
+                    Some(index) => *index,
+                    None => {
+                        instruction_acc_map.insert(meta.pubkey.clone(), i as u32);
+                        i as u32
+                    }
+                };
 
-                // Match the first signer as the caller (cosmos_signers[0])
-                let caller_index = account_map
-                    .get(&cosmos_signers[0])
-                    .expect("Caller signer not found");
-
+                let id_index = account_map.get(&meta.pubkey).unwrap();
                 instruction_accounts.push(InstructionAccount {
-                    id_index: i as u32,
-                    caller_index: *caller_index,
-                    callee_index: account_idx,
+                    id_index: *id_index,
+                    caller_index: *id_index,
+                    callee_index: callee_index,
                     is_signer: meta.is_signer,
                     is_writable: meta.is_writable,
                 });
@@ -137,7 +143,7 @@ impl TransactionBuilder {
             });
         }
 
-        // Step 4: Assemble MsgTransaction
+        // Assemble MsgTransaction
         MsgTransaction {
             signers: cosmos_signers,
             accounts,
