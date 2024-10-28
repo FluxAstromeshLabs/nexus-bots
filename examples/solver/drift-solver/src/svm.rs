@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, StdError, Uint64, Deps};
+use cosmwasm_std::{Binary, Deps, StdError, Uint64};
 use sha2::{Digest, Sha256};
 const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 pub const SPL_TOKEN2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -19,6 +19,16 @@ pub struct Link {
 #[cw_serde]
 pub struct AccountLink {
     pub link: Link,
+}
+
+#[cw_serde]
+pub struct Account {
+    pub pubkey: Binary,
+    pub owner: Binary,
+    pub lamports: Uint64, // JSON cdc returns string (with quotes), standard u64 can't be parsed
+    pub data: Binary,
+    pub executable: bool,
+    pub rent_epoch: Uint64,
 }
 
 #[cw_serde]
@@ -122,7 +132,7 @@ impl TransactionBuilder {
                     None => {
                         instruction_acc_map.insert(meta.pubkey.clone(), i as u32);
                         i as u32
-                    },
+                    }
                 };
 
                 let id_index = account_map.get(&meta.pubkey).unwrap();
