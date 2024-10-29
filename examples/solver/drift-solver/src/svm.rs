@@ -2,13 +2,14 @@ use std::collections::BTreeMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, StdError, Uint64};
+use cosmwasm_std::{Binary, Deps, StdError, Uint64};
 use sha2::{Digest, Sha256};
 const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 pub const SPL_TOKEN2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 pub const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
-pub const SYS_VAR_RENT_ID: &str = "SysvarRent11111111111111111111111111111111";
-
+pub const SYS_VAR_RENT_ID: &str = "SysvarRent111111111111111111111111111111111";
+pub const MINT: &str = "C3xXmrQWWnTmYABa8YTKrYU5jkonkTwz1qQCJbVX3mQh";
+pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 #[cw_serde]
 pub struct Link {
     pub cosmos_addr: String,
@@ -62,14 +63,14 @@ pub struct Instruction {
     pub data: Binary,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct InstructionAccountMeta {
     pub pubkey: String,
     pub is_signer: bool,
     pub is_writable: bool,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct InstructionMeta {
     pub program_id: String,
     pub account_meta: Vec<InstructionAccountMeta>,

@@ -50,9 +50,9 @@ pub struct FISInstruction {
 #[cw_serde]
 pub enum NexusAction {
     PlacePerpMarketOrder {
-        market: String,
         usdt_amount: Int128,
         leverage: u8,
+        market: String,
         auction_duration: u8,
     },
     FillPerpMarketOrder {

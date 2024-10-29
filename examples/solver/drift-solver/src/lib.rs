@@ -10,8 +10,7 @@ use drift::{
 };
 use std::collections::HashMap;
 use std::vec::Vec;
-use svm::{Account, AccountLink, Link, Pubkey, TransactionBuilder};
-use time::{Duration, OffsetDateTime};
+use svm::{AccountLink, Link, Pubkey, TransactionBuilder};
 mod astromesh;
 mod drift;
 mod svm;
@@ -74,8 +73,32 @@ pub fn is_in_auction_time(height: u64, order_creation_slot: u64, auction_period:
     false
 }
 
+pub fn astro_transfer(cosmos_addr: String, amount: u64) -> Vec<FISInstruction> {
+    let mut instructions = vec![];
+
+    let msg = MsgAstroTransfer::new(
+        cosmos_addr.clone(),
+        cosmos_addr.clone(),
+        "COSMOS".to_string(),
+        "SVM".to_string(),
+        Coin {
+            denom: "usdt".to_string(),
+            amount: amount.into(),
+        },
+    );
+
+    instructions.push(FISInstruction {
+        plane: "COSMOS".to_string(),
+        action: "COSMOS_INVOKE".to_string(),
+        address: "".to_string(),
+        msg: to_json_vec(&msg).unwrap(),
+    });
+
+    instructions
+}
+
 pub fn place_perp_market_order(
-    _deps: Deps,
+    deps: Deps,
     env: Env,
     market: String,
     usdt_amount: Int128,
@@ -87,31 +110,62 @@ pub fn place_perp_market_order(
 
     let fis = &fis_input[0];
     let acc_link = from_json::<AccountLink>(fis.data.first().unwrap())?;
-    let svm_pubkey = acc_link.link.svm_addr;
-    let cosmos_signer = env.contract.address.to_string();
+    let svm_addr = acc_link.link.svm_addr;
+    let cosmos_addr = env.contract.address.to_string();
 
     let user_order_id = 1u8;
+    let subacc_index = 0u16.to_le_bytes();
+    let sender_pubkey = Pubkey::from_string(&svm_addr)?;
 
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
     let (drift_state, _) =
         Pubkey::find_program_address(&["drift_state".as_bytes()], &drift_program_id)
             .ok_or_else(|| StdError::generic_err("failed to find drift state PDA"))?;
 
-    // 1. initialize account
-    let initialize_ix = create_initialize_user_ixs(svm_pubkey.clone())?;
+    let mut tx = TransactionBuilder::new();
+
+    // if (logic) {
+    //     // 1. initialize account
+    //     let initialize_ix = create_initialize_user_ixs(deps, svm_addr.clone(), drift_state.to_string())?;
+
+    //     for idx in 0..initialize_ix.len() {
+    //         tx.add_instruction(initialize_ix[idx].clone());
+    //     }
+    // }
 
     // 2. deposit usdt
     let deposit_amount: u64 = 1_000_000_000;
+    let astro_transfer_ix = astro_transfer(cosmos_addr.clone(), 1_000_000_000);
+    instructions.extend(astro_transfer_ix);
 
-    let deposit_ix =
-        create_deposit_usdt_ix(svm_pubkey.clone(), deposit_amount)?;
+    let deposit_ix = create_deposit_usdt_ix(
+        deps,
+        svm_addr.clone(),
+        drift_state.to_string(),
+        deposit_amount,
+    )?;
+
+    for idx in 0..deposit_ix.len() {
+        tx.add_instruction(deposit_ix[idx].clone());
+    }
 
     // 3. place order
-    let market_index = get_all_market_indexes(drift_program_id)?;
-
-    let expire_time = (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp();
+    let expire_time = env.block.time.seconds() as i64 + auction_duration as i64;
 
     let asset_amount = usdt_amount.i128() as u64 * leverage as u64;
+
+    let market_index: u16;
+    match market.as_str() {
+        "btc-usdt" => market_index = 0,
+        "eth-usdt" => market_index = 1,
+        "sol-usdt" => market_index = 2,
+        default => {
+            return Err(StdError::generic_err(format!(
+                "market {} is not supported",
+                default
+            )))
+        }
+    }
 
     let order_params = OrderParams {
         order_type: OrderType::Market,
@@ -120,7 +174,7 @@ pub fn place_perp_market_order(
         user_order_id: user_order_id,
         base_asset_amount: asset_amount,
         price: 1u64,
-        market_index: market_index[&market],
+        market_index: market_index,
         reduce_only: false,
         post_only: PostOnlyParam::None,
         immediate_or_cancel: false,
@@ -129,34 +183,26 @@ pub fn place_perp_market_order(
         trigger_condition: OrderTriggerCondition::Above,
         oracle_price_offset: Some(0),
         auction_duration: Some(auction_duration),
-        auction_start_price: None,
-        auction_end_price: None,
+        auction_start_price: Some(asset_amount as i64),
+        auction_end_price: Some(asset_amount as i64),
     };
 
     let place_order_ix =
-        create_place_order_ix(svm_pubkey.clone(), drift_state.to_string(), order_params)?;
+        create_place_order_ix(svm_addr.clone(), drift_state.to_string(), order_params)?;
 
     let compute_budget = 5_000_000u64;
-
-    let mut tx = TransactionBuilder::new();
-
-    for idx in 0..initialize_ix.len() {
-        tx.add_instruction(initialize_ix[idx].clone());
-    }
-
-    for idx in 0..deposit_ix.len() {
-        tx.add_instruction(deposit_ix[idx].clone());
-    }
 
     for idx in 0..place_order_ix.len() {
         tx.add_instruction(place_order_ix[idx].clone());
     }
 
-    let msg = tx.build(vec![cosmos_signer], compute_budget.into());
+    let msg = tx.build(vec![cosmos_addr], compute_budget.into());
+
+    deps.api.debug(&format!("msg {:?}", msg));
 
     instructions.push(FISInstruction {
-        plane: "COSMOS".to_string(),
-        action: "COSMOS_INVOKE".to_string(),
+        plane: "SVM".to_string(),
+        action: "VM_INVOKE".to_string(),
         address: "".to_string(),
         msg: to_json_vec(&msg)?,
     });
@@ -292,9 +338,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let action = from_json::<NexusAction>(msg.msg)?;
     match action {
         NexusAction::PlacePerpMarketOrder {
-            market,
             usdt_amount,
             leverage,
+            market,
             auction_duration,
         } => place_perp_market_order(
             deps,
