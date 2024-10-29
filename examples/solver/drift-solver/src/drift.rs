@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, StdError, StdResult};
+use cosmwasm_std::{Binary, Deps, StdError, StdResult};
 
 use crate::svm::{
     InstructionAccountMeta, InstructionMeta, Pubkey, ASSOCIATED_TOKEN_PROGRAM_ID, MINT,
@@ -11,6 +11,7 @@ pub const ORACLE_BTC: &str = "3HRnxmtHQrHkooPdFZn5ZQbPTKGvBSyoTi4VVkkoT6u6";
 pub const ORACLE_ETH: &str = "2S8JS8K4E7EYnXaoVABFWG3wkxKKaVWEVKZ8GiyinBuS";
 pub const ORACLE_SOL: &str = "362SGYeXLRddaacjbyRuXPc1iewF1FrZpRpkyw72LHAM";
 pub const DRIFT_STATE: &str = "HYEM9xMiSVsGzwEVRhX3WHH9CB2sFeHnWhyZUR4KVr8c";
+pub const DRIFT_DEFAULT_PERCISION: u64 = 1000_000;
 
 pub const ALL_MARKETS: &[&str] = &[
     "GbMqWisskNfP9ZY53cy8eZNK16sg89FKCo4yzpRhFZ2",
@@ -20,10 +21,10 @@ pub const ALL_MARKETS: &[&str] = &[
     "2GKUdmaBJNjfCucDT14HrsWchVrm3yvj4QY2jjnUEg3v",
 ];
 
-pub fn create_initialize_user_ixs(
-    deps: Deps,
-    sender_svm: String,
-) -> StdResult<Vec<InstructionMeta>> {
+pub const DISCRIMINATOR_OFFSET: usize = 8;
+pub const PERP_MARKET_DISCRIMINATOR: &[u8] = &[10, 223, 12, 44, 107, 245, 55, 247];
+
+pub fn create_initialize_user_ixs(sender_svm: String) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
     let subacc_index = 0u16.to_le_bytes();
@@ -130,7 +131,7 @@ pub fn create_initialize_user_ixs(
 }
 
 pub fn create_deposit_usdt_ix(
-    deps: Deps,
+    _deps: Deps,
     sender_svm: String,
     amount: u64,
 ) -> StdResult<Vec<InstructionMeta>> {
@@ -263,12 +264,9 @@ fn get_all_oracles_and_markets() -> Vec<InstructionAccountMeta> {
 
 pub fn create_place_order_ix(
     sender_svm: String,
-    taker_svm: String,
     order_params: OrderParams,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
-    let taker_pubkey = Pubkey::from_string(&taker_svm)?;
-
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
     let subacc_index = 0u16.to_le_bytes();
     let (user, _) = Pubkey::find_program_address(
@@ -786,4 +784,20 @@ pub struct User {
 #[derive(Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Debug, Default)]
 pub struct Example {
     pub a: Option<u32>,
+}
+
+pub fn oracle_price_from_perp_market(market_bz: &Binary) -> StdResult<i64> {
+    const AMM_OFFSET: usize = 32;
+    const HISTORICAL_PRICE_OFFSET: usize = 32;
+
+    let price_bz = market_bz
+        .as_slice()
+        .get(
+            DISCRIMINATOR_OFFSET + AMM_OFFSET + HISTORICAL_PRICE_OFFSET
+                ..DISCRIMINATOR_OFFSET + AMM_OFFSET + HISTORICAL_PRICE_OFFSET + 8,
+        )
+        .ok_or_else(|| {
+            StdError::generic_err("read oracle price failed: must have valid data within range")
+        })?;
+    Ok(i64::from_le_bytes(price_bz.try_into().unwrap()))
 }

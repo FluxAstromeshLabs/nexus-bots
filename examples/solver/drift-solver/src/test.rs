@@ -175,7 +175,6 @@ mod tests {
 
         let ix = create_place_order_ix(
             "7WrZxBiKCMGuzLCW2VwKK7sQjhTZLbDe5sKfJsEcARpF".to_string(),
-            "2GKUdmaBJNjfCucDT14HrsWchVrm3yvj4QY2jjnUEg3v".to_string(),
             order_params,
         )
         .unwrap();
