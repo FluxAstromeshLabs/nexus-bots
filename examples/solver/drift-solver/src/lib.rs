@@ -164,7 +164,23 @@ pub fn place_perp_market_order(
     let expire_time = env.block.time.seconds() as i64 + 30;
     let (start_price, end_price) = (market_price * 998 / 1000, market_price);
     // base_asset_amount = usdt_amount * leverage / price
-    let user_order_id = 1;
+
+    let user_info = from_json::<Account>(user_info_bz)?;
+    const USER_DISCRIMINATOR: &[u8] = &[159, 117, 95, 227, 239, 151, 58, 236];
+    let user_info_bz = user_info.data;
+    if !user_info_bz[..8].starts_with(USER_DISCRIMINATOR) {
+        return Err(StdError::generic_err(format!(
+            "invalid user discriminator, expected: {:?}",
+            USER_DISCRIMINATOR
+        )));
+    }
+    deps.api
+        .debug(format!("user descriminator: {:?}", user_info_bz[..8].to_vec()).as_str());
+    
+    let user_info =
+        borsh::from_slice::<User>(&user_info_bz[8..]).expect("must be parsed as drift::User");
+    let user_order_id = user_info.next_order_id.try_into().unwrap();
+
     let order_params = OrderParams {
         order_type: OrderType::Market,
         market_type: MarketType::Perp,
