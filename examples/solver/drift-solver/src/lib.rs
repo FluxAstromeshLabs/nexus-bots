@@ -2,14 +2,15 @@ use astromesh::{FISInput, FISInstruction, MsgAstroTransfer, NexusAction};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128,
-    MessageInfo, Response, StdError, StdResult, Uint64,
+    MessageInfo, Response, StdError, StdResult,
 };
 use drift::{
-    create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix, create_initialize_user_ixs, create_place_order_ix, oracle_price_from_perp_market, MarketType, OrderParams, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, DRIFT_DEFAULT_PERCISION, DRIFT_PROGRAM_ID, ORACLE_BTC, PERP_MARKET_DISCRIMINATOR
+    create_deposit_usdt_ix, create_initialize_user_ixs, create_place_order_ix,
+    oracle_price_from_perp_market, MarketType, OrderParams, OrderTriggerCondition, OrderType,
+    PositionDirection, PostOnlyParam, DRIFT_DEFAULT_PERCISION, PERP_MARKET_DISCRIMINATOR,
 };
-use std::collections::HashMap;
 use std::vec::Vec;
-use svm::{Account, AccountLink, Link, Pubkey, TransactionBuilder};
+use svm::{Account, AccountLink, TransactionBuilder};
 mod astromesh;
 mod drift;
 mod svm;
@@ -146,7 +147,7 @@ pub fn place_perp_market_order(
     // 3. place order
     let market_price = oracle_price_from_perp_market(&market_account.data)?;
     let expire_time = env.block.time.seconds() as i64 + 30;
-    let (start_price, end_price) = (market_price*998/1000, market_price);
+    let (start_price, end_price) = (market_price * 998 / 1000, market_price);
     // base_asset_amount = usdt_amount * leverage / price
     let user_order_id = 1;
     let order_params = OrderParams {
@@ -154,7 +155,8 @@ pub fn place_perp_market_order(
         market_type: MarketType::Perp,
         direction: PositionDirection::Long,
         user_order_id,
-        base_asset_amount: quote_asset_amount * (leverage as u64) * DRIFT_DEFAULT_PERCISION / (market_price as u64),
+        base_asset_amount: quote_asset_amount * (leverage as u64) * DRIFT_DEFAULT_PERCISION
+            / (market_price as u64),
         price: market_price as u64, // oralce price
         market_index,
         reduce_only: false,

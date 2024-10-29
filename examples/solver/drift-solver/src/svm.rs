@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Deps, StdError, Uint64};
+use cosmwasm_std::{Binary, StdError, Uint64};
 use sha2::{Digest, Sha256};
 const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 pub const SPL_TOKEN2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";

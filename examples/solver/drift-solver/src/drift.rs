@@ -1,9 +1,4 @@
-use std::io::Read;
-
-use cosmwasm_std::{
-    Binary, Decimal256, DelegationResponse, DelegationTotalRewardsResponse, Deps, StdError,
-    StdResult,
-};
+use cosmwasm_std::{Binary, Deps, StdError, StdResult};
 
 use crate::svm::{
     InstructionAccountMeta, InstructionMeta, Pubkey, ASSOCIATED_TOKEN_PROGRAM_ID, MINT,
@@ -30,7 +25,7 @@ pub const DISCRIMINATOR_OFFSET: usize = 8;
 pub const PERP_MARKET_DISCRIMINATOR: &[u8] = &[10, 223, 12, 44, 107, 245, 55, 247];
 
 pub fn create_initialize_user_ixs(
-    deps: Deps,
+    _deps: Deps,
     sender_svm: String,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
@@ -139,7 +134,7 @@ pub fn create_initialize_user_ixs(
 }
 
 pub fn create_deposit_usdt_ix(
-    deps: Deps,
+    _deps: Deps,
     sender_svm: String,
     amount: u64,
 ) -> StdResult<Vec<InstructionMeta>> {
