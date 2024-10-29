@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, StdError, Uint64};
 use sha2::{Digest, Sha256};
@@ -93,9 +94,7 @@ impl TransactionBuilder {
     }
 
     pub fn add_instructions(&mut self, ixs: Vec<InstructionMeta>) -> &mut Self {
-        for ix in ixs {
-            self.instructions.push(ix);
-        }
+        self.instructions.extend(ixs);
         self
     }
 
@@ -172,7 +171,7 @@ impl TransactionBuilder {
 
 // === crypto utils ===
 
-#[derive(Debug)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Default)]
 pub struct Pubkey(pub [u8; 32]);
 
 pub enum PubkeyError {
