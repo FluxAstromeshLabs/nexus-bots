@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    Binary, Decimal256, DelegationResponse, DelegationTotalRewardsResponse, Deps, StdError,
-    StdResult,
-};
+use cosmwasm_std::{Binary, Deps, StdError, StdResult};
 
 use crate::svm::{
     InstructionAccountMeta, InstructionMeta, Pubkey, ASSOCIATED_TOKEN_PROGRAM_ID, MINT,
@@ -13,6 +10,8 @@ pub const DRIFT_PROGRAM_ID: &str = "FLR3mfYrMZUnhqEadNJVwjUhjX8ky9vE9qTtDmkK4vwC
 pub const ORACLE_BTC: &str = "3HRnxmtHQrHkooPdFZn5ZQbPTKGvBSyoTi4VVkkoT6u6";
 pub const ORACLE_ETH: &str = "2S8JS8K4E7EYnXaoVABFWG3wkxKKaVWEVKZ8GiyinBuS";
 pub const ORACLE_SOL: &str = "362SGYeXLRddaacjbyRuXPc1iewF1FrZpRpkyw72LHAM";
+pub const DRIFT_STATE: &str = "HYEM9xMiSVsGzwEVRhX3WHH9CB2sFeHnWhyZUR4KVr8c";
+pub const DRIFT_DEFAULT_PERCISION: u64 = 1000_000;
 
 pub const ALL_MARKETS: &[&str] = &[
     "GbMqWisskNfP9ZY53cy8eZNK16sg89FKCo4yzpRhFZ2",
@@ -22,10 +21,12 @@ pub const ALL_MARKETS: &[&str] = &[
     "2GKUdmaBJNjfCucDT14HrsWchVrm3yvj4QY2jjnUEg3v",
 ];
 
+pub const DISCRIMINATOR_OFFSET: usize = 8;
+pub const PERP_MARKET_DISCRIMINATOR: &[u8] = &[10, 223, 12, 44, 107, 245, 55, 247];
+
 pub fn create_initialize_user_ixs(
-    deps: Deps,
+    _deps: Deps,
     sender_svm: String,
-    drift_state: String,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
     let drift_program_id = Pubkey::from_string(&DRIFT_PROGRAM_ID.to_string())?;
@@ -61,7 +62,7 @@ pub fn create_initialize_user_ixs(
                     is_writable: true,
                 },
                 InstructionAccountMeta {
-                    pubkey: drift_state.clone(),
+                    pubkey: DRIFT_STATE.to_string(),
                     is_signer: false,
                     is_writable: true,
                 },
@@ -102,7 +103,7 @@ pub fn create_initialize_user_ixs(
                     is_writable: true,
                 },
                 InstructionAccountMeta {
-                    pubkey: drift_state,
+                    pubkey: DRIFT_STATE.to_string(),
                     is_signer: false,
                     is_writable: true,
                 },
@@ -133,9 +134,8 @@ pub fn create_initialize_user_ixs(
 }
 
 pub fn create_deposit_usdt_ix(
-    deps: Deps,
+    _deps: Deps,
     sender_svm: String,
-    drift_state: String,
     amount: u64,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
@@ -198,7 +198,7 @@ pub fn create_deposit_usdt_ix(
         program_id: DRIFT_PROGRAM_ID.to_string(),
         account_meta: vec![
             InstructionAccountMeta {
-                pubkey: drift_state.clone(),
+                pubkey: DRIFT_STATE.to_string(),
                 is_signer: false,
                 is_writable: true,
             },
@@ -267,7 +267,6 @@ fn get_all_oracles_and_markets() -> Vec<InstructionAccountMeta> {
 
 pub fn create_place_order_ix(
     sender_svm: String,
-    drift_state: String,
     order_params: OrderParams,
 ) -> StdResult<Vec<InstructionMeta>> {
     let sender_pubkey = Pubkey::from_string(&sender_svm)?;
@@ -298,7 +297,7 @@ pub fn create_place_order_ix(
 
     let mut account_meta = vec![
         InstructionAccountMeta {
-            pubkey: drift_state.clone(),
+            pubkey: DRIFT_STATE.to_string(),
             is_signer: false,
             is_writable: true,
         },
@@ -510,4 +509,20 @@ pub struct OrderParams {
     pub auction_duration: Option<u8>,     // specified in slots
     pub auction_start_price: Option<i64>, // specified in price or oracle_price_offset
     pub auction_end_price: Option<i64>,   // specified in price or oracle_price_offset
+}
+
+pub fn oracle_price_from_perp_market(market_bz: &Binary) -> StdResult<i64> {
+    const AMM_OFFSET: usize = 32;
+    const HISTORICAL_PRICE_OFFSET: usize = 32;
+
+    let price_bz = market_bz
+        .as_slice()
+        .get(
+            DISCRIMINATOR_OFFSET + AMM_OFFSET + HISTORICAL_PRICE_OFFSET
+                ..DISCRIMINATOR_OFFSET + AMM_OFFSET + HISTORICAL_PRICE_OFFSET + 8,
+        )
+        .ok_or_else(|| {
+            StdError::generic_err("read oracle price failed: must have valid data within range")
+        })?;
+    Ok(i64::from_le_bytes(price_bz.try_into().unwrap()))
 }
