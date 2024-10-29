@@ -92,6 +92,13 @@ impl TransactionBuilder {
         self
     }
 
+    pub fn add_instructions(&mut self, ixs: Vec<InstructionMeta>) -> &mut Self {
+        for ix in ixs {
+            self.instructions.push(ix);
+        }
+        self
+    }
+
     pub fn build(&self, cosmos_signers: Vec<String>, compute_budget: u64) -> MsgTransaction {
         // Collect unique accounts and assign indices using BTreeMap
         let mut account_map: BTreeMap<String, u32> = BTreeMap::new();

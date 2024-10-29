@@ -16,6 +16,7 @@ pub const ORACLE_BTC: &str = "3HRnxmtHQrHkooPdFZn5ZQbPTKGvBSyoTi4VVkkoT6u6";
 pub const ORACLE_ETH: &str = "2S8JS8K4E7EYnXaoVABFWG3wkxKKaVWEVKZ8GiyinBuS";
 pub const ORACLE_SOL: &str = "362SGYeXLRddaacjbyRuXPc1iewF1FrZpRpkyw72LHAM";
 pub const DRIFT_STATE: &str = "HYEM9xMiSVsGzwEVRhX3WHH9CB2sFeHnWhyZUR4KVr8c";
+pub const DRIFT_DEFAULT_PERCISION: u64 = 1000_000;
 
 pub const ALL_MARKETS: &[&str] = &[
     "GbMqWisskNfP9ZY53cy8eZNK16sg89FKCo4yzpRhFZ2",
@@ -160,7 +161,6 @@ pub fn create_deposit_usdt_ix(
     .ok_or_else(|| StdError::generic_err("failed to find userstats PDA"))?;
 
     let market_index = 0u16;
-
     let (spot_market_vault, _) = Pubkey::find_program_address(
         &[
             "spot_market_vault".as_bytes(),

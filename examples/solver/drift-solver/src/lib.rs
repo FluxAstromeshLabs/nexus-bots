@@ -5,10 +5,7 @@ use cosmwasm_std::{
     MessageInfo, Response, StdError, StdResult, Uint64,
 };
 use drift::{
-    create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix,
-    create_initialize_user_ixs, create_place_order_ix, oracle_price_from_perp_market, MarketType,
-    OrderParams, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam,
-    DRIFT_PROGRAM_ID, ORACLE_BTC, PERP_MARKET_DISCRIMINATOR,
+    create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix, create_initialize_user_ixs, create_place_order_ix, oracle_price_from_perp_market, MarketType, OrderParams, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, DRIFT_DEFAULT_PERCISION, DRIFT_PROGRAM_ID, ORACLE_BTC, PERP_MARKET_DISCRIMINATOR
 };
 use std::collections::HashMap;
 use std::vec::Vec;
@@ -92,9 +89,8 @@ pub fn place_perp_market_order(
     usdt_amount: Int128,
     leverage: u8,
     auction_duration: u8,
-    // acc link
-    // svm accounts
-    // => market 0, market 1, market 2
+    // fis[0]: cosmos: acc link
+    // fis[1]: svm: accounts [user, market 0, market 1, market 2]
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     let mut instructions = vec![];
@@ -102,9 +98,9 @@ pub fn place_perp_market_order(
     let fis = &fis_input[0];
     let acc_link = from_json::<AccountLink>(fis.data.first().unwrap())?;
     let svm_addr = acc_link.link.svm_addr;
-    let user_info_bz = fis
+    let user_info_bz = fis_input[1]
         .data
-        .get(1)
+        .get(0)
         .ok_or_else(|| StdError::generic_err("user info must exist"))?;
 
     let market_index: u16 = match market.as_str() {
@@ -118,7 +114,7 @@ pub fn place_perp_market_order(
             )))
         }
     };
-    let market_bz = fis
+    let market_bz = fis_input[1]
         .data
         .get((market_index as usize) + 1)
         .ok_or_else(|| StdError::generic_err("requested market must exist"))?;
@@ -129,39 +125,36 @@ pub fn place_perp_market_order(
             PERP_MARKET_DISCRIMINATOR
         )));
     }
-    // compose instructions
 
+    // compose instructions
     // 1. create accounts if not exist
     let mut tx = TransactionBuilder::new();
-
     if user_info_bz.eq(&"null".as_bytes()) {
         let init_account_ixs = create_initialize_user_ixs(deps, svm_addr.clone())?;
-        for idx in 0..init_account_ixs.len() {
-            tx.add_instruction(init_account_ixs[idx].clone());
-        }
-    }
+        tx.add_instructions(init_account_ixs);
+    };
 
     // 2. deposit usdt
-    let asset_amount = usdt_amount.i128() as u64;
+    let quote_asset_amount = usdt_amount.i128() as u64;
     let cosmos_addr = env.contract.address.to_string();
     let astro_transfer_ix = astro_transfer(cosmos_addr.clone(), 1_000_000_000);
     instructions.extend(astro_transfer_ix);
 
-    let deposit_ix = create_deposit_usdt_ix(deps, svm_addr.clone(), asset_amount)?;
-    for idx in 0..deposit_ix.len() {
-        tx.add_instruction(deposit_ix[idx].clone());
-    }
+    let deposit_ixs = create_deposit_usdt_ix(deps, svm_addr.clone(), quote_asset_amount)?;
+    tx.add_instructions(deposit_ixs);
 
     // 3. place order
-    let user_order_id = 1u8;
-    let market_price = oracle_price_from_perp_market(market_bz)?;
+    let market_price = oracle_price_from_perp_market(&market_account.data)?;
     let expire_time = env.block.time.seconds() as i64 + 30;
+    let (start_price, end_price) = (market_price*998/1000, market_price);
+    // base_asset_amount = usdt_amount * leverage / price
+    let user_order_id = 1;
     let order_params = OrderParams {
         order_type: OrderType::Market,
         market_type: MarketType::Perp,
         direction: PositionDirection::Long,
         user_order_id,
-        base_asset_amount: asset_amount,
+        base_asset_amount: quote_asset_amount * (leverage as u64) * DRIFT_DEFAULT_PERCISION / (market_price as u64),
         price: market_price as u64, // oralce price
         market_index,
         reduce_only: false,
@@ -172,17 +165,13 @@ pub fn place_perp_market_order(
         trigger_condition: OrderTriggerCondition::Above,
         oracle_price_offset: Some(0),
         auction_duration: Some(auction_duration),
-        auction_start_price: None,
-        auction_end_price: None,
+        auction_start_price: Some(start_price),
+        auction_end_price: Some(end_price),
     };
 
     let place_order_ixs = create_place_order_ix(svm_addr.clone(), order_params)?;
-
     let compute_budget = 5_000_000u64;
-
-    for idx in 0..place_order_ixs.len() {
-        tx.add_instruction(place_order_ixs[idx].clone());
-    }
+    tx.add_instructions(place_order_ixs);
 
     let msg = tx.build(vec![cosmos_addr], compute_budget.into());
     deps.api.debug(&format!("msg {:?}", msg));
