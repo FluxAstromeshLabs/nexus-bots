@@ -5,7 +5,7 @@ use cosmwasm_std::{
     MessageInfo, Response, StdError, StdResult, Uint128,
 };
 use drift::{
-    create_deposit_usdt_ix, create_fill_order_jit_ix, create_fill_order_vamm_ix,
+    create_deposit_usdt_ix, create_fill_order_jit_ixs, create_fill_order_vamm_ix,
     create_initialize_user_ixs, create_place_order_ix, oracle_price_from_perp_market, MarketType,
     OrderParams, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, User,
     DRIFT_DEFAULT_PERCISION, PERP_MARKET_DISCRIMINATOR,
@@ -214,8 +214,11 @@ pub fn fill_perp_market_order(
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     let sender = env.contract.address.to_string();
+    if percent <= 0 || percent > 100 {
+        return Err(StdError::generic_err(format!("fill percent must be an integer within range 1..100, actual: {}", percent)))
+    } 
     let sender_svm_link = from_json::<AccountLink>(fis_input.get(0).unwrap().data.get(0).unwrap())?; // sender svm
-    let sender_svm = sender_svm_link.link.svm_addr;
+    let svm_addr = sender_svm_link.link.svm_addr;
     let taker_info_bz = fis_input.get(1).unwrap().data.get(1).unwrap();
     if taker_info_bz.eq(&"null".as_bytes()) {
         return Err(StdError::generic_err("taker subaccount is not initialized"));
@@ -241,7 +244,7 @@ pub fn fill_perp_market_order(
 
     // if subaccount is not created, create it
     if sender_info.starts_with("null".as_bytes()) {
-        let initialize_ixs = create_initialize_user_ixs(sender_svm.clone())?;
+        let initialize_ixs = create_initialize_user_ixs(svm_addr.clone())?;
         tx_builder.add_instructions(initialize_ixs);
     }
 
@@ -254,9 +257,10 @@ pub fn fill_perp_market_order(
         .iter()
         .find(|x| x.order_id == taker_order_id)
         .expect(format!("taker order id {} must exist", taker_order_id).as_str());
+
+    // fallback: fill against vAMM
     if !is_in_auction_time(env.block.height, order.slot, order.auction_duration) {
-        // fill against vAMM
-        let fill_vamm = create_fill_order_vamm_ix(sender_svm, taker_svm, taker_order_id)?;
+        let fill_vamm = create_fill_order_vamm_ix(svm_addr, taker_svm, taker_order_id)?;
 
         tx_builder.add_instructions(fill_vamm);
         let msg = tx_builder.build(vec![sender.clone()], 10_000_000);
@@ -273,6 +277,9 @@ pub fn fill_perp_market_order(
     }
     let amount_to_fill =
         (order.base_asset_amount - order.base_asset_amount_filled) * (percent as u64) / 100;
+    let usdt_to_deposit = amount_to_fill * order.price / DRIFT_DEFAULT_PERCISION;
+    let deposit_ixs = create_deposit_usdt_ix(deps, svm_addr.clone(), usdt_to_deposit)?;
+    tx_builder.add_instructions(deposit_ixs);
 
     let direction = match order.direction {
         PositionDirection::Long => PositionDirection::Short,
@@ -280,15 +287,15 @@ pub fn fill_perp_market_order(
     };
 
     let order_params = OrderParams {
-        order_type: OrderType::Market,
+        order_type: OrderType::Limit,
         market_type: MarketType::Perp,
         direction,
         user_order_id: 0,
         base_asset_amount: amount_to_fill,
         price: order.auction_start_price as u64,
         market_index: order.market_index,
-        reduce_only: false,             // ReduceOnly is false
-        post_only: PostOnlyParam::None, // PostOnly is 0, which we'll assume means None
+        reduce_only: false,
+        post_only: PostOnlyParam::MustPostOnly,
         immediate_or_cancel: true,
         max_ts: Some(env.block.time.plus_minutes(5).seconds() as i64),
         trigger_price: Some(0),
@@ -300,10 +307,10 @@ pub fn fill_perp_market_order(
     };
 
     let fill_jit_ixs =
-        create_fill_order_jit_ix(sender_svm, order_params, taker_svm, taker_order_id)?;
+        create_fill_order_jit_ixs(svm_addr, order_params, taker_svm, taker_order_id)?;
 
     tx_builder.add_instructions(fill_jit_ixs);
-    tx_builder.build(vec![env.contract.address.to_string()], 10_000_000);
+    tx_builder.build(vec![sender.clone()], 10_000_000);
 
     // transfer usdt from cosmos > svm
     let cosmos_transfer = MsgAstroTransfer::new(
@@ -313,9 +320,10 @@ pub fn fill_perp_market_order(
         "SVM".to_string(),
         Coin {
             denom: "usdt".to_string(),
-            amount: Uint128::from(amount_to_fill),
+            amount: Uint128::from(usdt_to_deposit),
         },
     );
+
     fis_instructions.push(FISInstruction {
         plane: "COSMOS".to_string(),
         action: "COSMOS_INVOKE".to_string(),

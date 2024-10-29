@@ -4,8 +4,8 @@ mod tests {
 
     use crate::{
         drift::{
-            create_place_order_ix, Example, MarketType, OrderParams, OrderTriggerCondition,
-            OrderType, PositionDirection, PostOnlyParam, User,
+            create_place_order_ix, MarketType, OrderParams, OrderTriggerCondition, OrderType,
+            PositionDirection, PostOnlyParam, User,
         },
         svm::{
             Instruction, InstructionAccount, InstructionAccountMeta, InstructionMeta,

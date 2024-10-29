@@ -288,10 +288,6 @@ pub fn create_place_order_ix(
     ]
     .concat();
 
-    // TODO: we should include only user related oracle/markets in this instruction
-    // this add some more filtering logic so I skipped it for now
-    let all_oracles_markets = get_all_oracles_and_markets();
-
     let mut account_meta = vec![
         InstructionAccountMeta {
             pubkey: DRIFT_STATE.to_string(),
@@ -309,6 +305,10 @@ pub fn create_place_order_ix(
             is_writable: true,
         },
     ];
+
+    // TODO: we should include only user related oracle/markets in this instruction
+    // this add some more filtering logic so I skipped it for now
+    let all_oracles_markets = get_all_oracles_and_markets();
     account_meta.extend(all_oracles_markets);
 
     Ok(vec![InstructionMeta {
@@ -318,7 +318,7 @@ pub fn create_place_order_ix(
     }])
 }
 
-pub fn create_fill_order_jit_ix(
+pub fn create_fill_order_jit_ixs(
     sender_svm: String,
     order_params: OrderParams,
     taker_svm: String,
@@ -359,48 +359,53 @@ pub fn create_fill_order_jit_ix(
         )))
     })?;
 
-    let jit_fill_data = &[
-        [149, 158, 85, 66, 239, 9, 243, 98].as_slice(),
+    let place_and_make_data = &[
+        [149, 117, 11, 237, 47, 95, 89, 237].as_slice(),
         order_param_bz.as_slice(),
         taker_order_id.to_le_bytes().as_slice(),
     ]
     .concat();
 
+    let mut account_meta = vec![
+        InstructionAccountMeta {
+            pubkey: DRIFT_STATE.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: user.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: user_stats.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: taker_user.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: taker_user_stats.to_string(),
+            is_signer: false,
+            is_writable: true,
+        },
+        InstructionAccountMeta {
+            pubkey: sender_svm.clone(),
+            is_signer: true,
+            is_writable: true,
+        },
+    ];
+
+    let all_oracles_markets = get_all_oracles_and_markets();
+    account_meta.extend(all_oracles_markets);
+
     Ok(vec![InstructionMeta {
         program_id: DRIFT_PROGRAM_ID.to_string(),
-        account_meta: vec![
-            InstructionAccountMeta {
-                pubkey: DRIFT_STATE.to_string(),
-                is_signer: false,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: user.to_string(),
-                is_signer: false,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: user_stats.to_string(),
-                is_signer: false,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: taker_user.to_string(),
-                is_signer: false,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: taker_user_stats.to_string(),
-                is_signer: false,
-                is_writable: true,
-            },
-            InstructionAccountMeta {
-                pubkey: sender_svm.clone(),
-                is_signer: true,
-                is_writable: true,
-            },
-        ],
-        data: Binary::new(jit_fill_data.to_vec()),
+        account_meta,
+        data: Binary::new(place_and_make_data.to_vec()),
     }])
 }
 
@@ -779,11 +784,6 @@ pub struct User {
     pub padding1: [u8; 5],
     pub last_fuel_bonus_update_ts: u32,
     pub padding: [u8; 12],
-}
-
-#[derive(Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Debug, Default)]
-pub struct Example {
-    pub a: Option<u32>,
 }
 
 pub fn oracle_price_from_perp_market(market_bz: &Binary) -> StdResult<i64> {
