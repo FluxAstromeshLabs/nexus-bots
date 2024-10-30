@@ -132,7 +132,7 @@ pub fn place_perp_market_order(
         )))
     }
 
-    let auction_duration = auction_duration.u64() as u8;
+    let auction_duration = auction_duration.u64();
     if auction_duration < 10 || auction_duration > 255 {
         return Err(StdError::generic_err(format!(
             "acution_duration must be integer in range 10..255. Actual: {}",
@@ -230,7 +230,7 @@ pub fn place_perp_market_order(
         trigger_price: Some(0),
         trigger_condition: OrderTriggerCondition::Above,
         oracle_price_offset: Some(0),
-        auction_duration: Some(auction_duration),
+        auction_duration: Some(auction_duration as u8),
         auction_start_price: Some(start_price.try_into().unwrap()),
         auction_end_price: Some(end_price.try_into().unwrap()),
     };
