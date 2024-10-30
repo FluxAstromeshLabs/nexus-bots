@@ -213,7 +213,7 @@ pub fn place_perp_market_order(
         order_direction = PositionDirection::Short;
         (start_price, end_price) = (market_price * 1002 / 1000, market_price);
     }
-    let expire_time = env.block.time.seconds() as i64 + 30;
+    let expire_time = env.block.time.seconds() as i64 + 120;
 
     // base_asset_amount = usdt_amount * leverage / price
     let order_params = OrderParams {
