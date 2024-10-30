@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, Int128, Int256, Uint256};
+use cosmwasm_std::{Binary, Coin, Int128, Uint64};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -50,13 +50,13 @@ pub enum NexusAction {
     PlacePerpMarketOrder {
         direction: String,
         usdt_amount: Int128,
-        leverage: u8,
+        leverage: Uint64,
         market: String,
-        auction_duration: u8,
+        auction_duration: Uint64,
     },
     FillPerpMarketOrder {
         taker_svm_address: String,
-        taker_order_id: u32,
-        percent: u8,
+        taker_order_id: Uint64,
+        percent: Uint64,
     },
 }
