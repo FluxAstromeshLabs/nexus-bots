@@ -2,7 +2,7 @@ use astromesh::{FISInput, FISInstruction, MsgAstroTransfer, NexusAction};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128,
-    MessageInfo, Response, StdError, StdResult, Uint128,
+    MessageInfo, Response, StdError, StdResult, Uint128, Uint64,
 };
 use drift::{
     create_deposit_usdt_ix, create_fill_order_jit_ixs, create_fill_order_vamm_ix,
@@ -103,23 +103,15 @@ pub fn place_perp_market_order(
     env: Env,
     market: String,
     usdt_amount: Int128,
-    leverage: u8,
-    auction_duration: u8,
+    leverage: Uint64,
+    auction_duration: Uint64,
     direction: String,
     // fis[0]: cosmos: acc link
     // fis[1]: svm: accounts [user, market 0, market 1, market 2]
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     let mut instructions = vec![];
-    // parse fis
-    let fis = &fis_input[0];
-    let acc_link = from_json::<AccountLink>(fis.data.first().unwrap())?;
-    let svm_addr = acc_link.link.svm_addr;
-    let user_info_bz = fis_input[1]
-        .data
-        .get(0)
-        .ok_or_else(|| StdError::generic_err("user info must exist"))?;
-
+    // validate msg inputs
     let market_index: u16 = match market.as_str() {
         "btc-usdt" => 0,
         "eth-usdt" => 1,
@@ -131,6 +123,32 @@ pub fn place_perp_market_order(
             )))
         }
     };
+
+    let leverage = leverage.u64();
+    if leverage < 1 || leverage > 20 {
+        return Err(StdError::generic_err(format!(
+            "leverage must be integer in range 1..20. Actual: {}",
+            leverage,
+        )))
+    }
+
+    let auction_duration = auction_duration.u64() as u8;
+    if auction_duration < 10 || auction_duration > 255 {
+        return Err(StdError::generic_err(format!(
+            "acution_duration must be integer in range 10..255. Actual: {}",
+            leverage,
+        )))
+    }
+
+    // parse + validate fis query
+    let fis = &fis_input[0];
+    let acc_link = from_json::<AccountLink>(fis.data.first().unwrap())?;
+    let svm_addr = acc_link.link.svm_addr;
+    let user_info_bz = fis_input[1]
+        .data
+        .get(0)
+        .ok_or_else(|| StdError::generic_err("user info must exist"))?;
+
     let market_bz = fis_input[1]
         .data
         .get((market_index as usize) + 1)
@@ -196,8 +214,6 @@ pub fn place_perp_market_order(
         borsh::from_slice::<User>(&user_info_bz[8..]).expect("must be parsed as drift::User");
     let user_order_id = user_info.next_order_id.try_into().unwrap();
 
-    
-
     let order_params = OrderParams {
         order_type: OrderType::Market,
         market_type: MarketType::Perp,
@@ -240,16 +256,19 @@ pub fn fill_perp_market_order(
     deps: Deps,
     env: Env,
     taker_svm: String,
-    taker_order_id: u32,
-    percent: u8,
+    taker_order_id: Uint64,
+    percent: Uint64,
     // fis[0]: cosmos: acc link
     // fis[1]: svm: accounts [maker_user, taker_user]
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     let sender = env.contract.address.to_string();
+    let percent = percent.u64();
     if percent <= 0 || percent > 100 {
         return Err(StdError::generic_err(format!("fill percent must be an integer within range 1..100, actual: {}", percent)))
-    } 
+    }
+    let taker_order_id = taker_order_id.u64() as u32;
+
     let sender_svm_link = from_json::<AccountLink>(fis_input.get(0).unwrap().data.get(0).unwrap())?; // sender svm
     let svm_addr = sender_svm_link.link.svm_addr;
     let taker_info_bz = fis_input.get(1).unwrap().data.get(1).unwrap();
