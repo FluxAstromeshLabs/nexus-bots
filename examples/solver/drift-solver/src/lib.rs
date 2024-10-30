@@ -7,8 +7,8 @@ use cosmwasm_std::{
 use drift::{
     create_deposit_usdt_ix, create_fill_order_jit_ixs, create_fill_order_vamm_ix,
     create_initialize_user_ixs, create_place_order_ix, oracle_price_from_perp_market, MarketType,
-    OrderParams, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam, User,
-    DRIFT_DEFAULT_PERCISION, PERP_MARKET_DISCRIMINATOR,
+    OrderParams, OrderStatus, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam,
+    User, DRIFT_DEFAULT_PERCISION, PERP_MARKET_DISCRIMINATOR,
 };
 use std::{collections::HashMap, vec::Vec};
 use svm::{Account, AccountLink, Pubkey, TransactionBuilder};
@@ -129,15 +129,21 @@ pub fn place_perp_market_order(
         return Err(StdError::generic_err(format!(
             "leverage must be integer in range 1..20. Actual: {}",
             leverage,
-        )))
+        )));
     }
 
     let auction_duration = auction_duration.u64();
     if auction_duration < 10 || auction_duration > 255 {
         return Err(StdError::generic_err(format!(
-            "acution_duration must be integer in range 10..255. Actual: {}",
+            "auction_duration must be integer in range 10..255. Actual: {}",
             leverage,
-        )))
+        )));
+    }
+
+    if direction != "long" && direction != "short" {
+        return Err(StdError::generic_err(
+            "direction must be either 'long' or 'short'",
+        ));
     }
 
     // parse + validate fis query
@@ -153,6 +159,8 @@ pub fn place_perp_market_order(
         .data
         .get((market_index as usize) + 1)
         .ok_or_else(|| StdError::generic_err("requested market must exist"))?;
+    deps.api.debug(format!("market bz: {}", market_bz).as_str());
+
     let market_account = from_json::<Account>(market_bz)?;
     if !market_account.data[..8].starts_with(PERP_MARKET_DISCRIMINATOR) {
         return Err(StdError::generic_err(format!(
@@ -164,9 +172,24 @@ pub fn place_perp_market_order(
     // compose instructions
     // 1. create accounts if not exist
     let mut tx = TransactionBuilder::new();
+    let mut user_order_id = 1;
     if user_info_bz.eq(&"null".as_bytes()) {
         let init_account_ixs = create_initialize_user_ixs(svm_addr.clone())?;
         tx.add_instructions(init_account_ixs);
+    } else {
+        // if user exists, get next user id from its info
+        let user_info = from_json::<Account>(user_info_bz)?;
+        const USER_DISCRIMINATOR: &[u8] = &[159, 117, 95, 227, 239, 151, 58, 236];
+        let user_data = user_info.data;
+        if !user_data[..8].starts_with(USER_DISCRIMINATOR) {
+            return Err(StdError::generic_err(format!(
+                "invalid user discriminator, expected: {:?}",
+                USER_DISCRIMINATOR
+            )));
+        }
+        let user_info =
+            borsh::from_slice::<User>(&user_data[8..]).expect("must be parsed as drift::User");
+        user_order_id = user_info.next_order_id as u8; // TODO: Inspect this order_id to see why it's u32 in user_info struct
     };
 
     // 2. deposit usdt
@@ -180,10 +203,6 @@ pub fn place_perp_market_order(
 
     // 3. place order
     let market_price = oracle_price_from_perp_market(&market_account.data)?;
-    if direction != "long" && direction != "short" {
-        return Err(StdError::generic_err("direction must be either 'long' or 'short'"));
-    }
-
     let order_direction: PositionDirection;
     let start_price: i64;
     let end_price: i64;
@@ -195,25 +214,8 @@ pub fn place_perp_market_order(
         (start_price, end_price) = (market_price * 1002 / 1000, market_price);
     }
     let expire_time = env.block.time.seconds() as i64 + 30;
-    
+
     // base_asset_amount = usdt_amount * leverage / price
-
-    let user_info = from_json::<Account>(user_info_bz)?;
-    const USER_DISCRIMINATOR: &[u8] = &[159, 117, 95, 227, 239, 151, 58, 236];
-    let user_info_bz = user_info.data;
-    if !user_info_bz[..8].starts_with(USER_DISCRIMINATOR) {
-        return Err(StdError::generic_err(format!(
-            "invalid user discriminator, expected: {:?}",
-            USER_DISCRIMINATOR
-        )));
-    }
-    deps.api
-        .debug(format!("user descriminator: {:?}", user_info_bz[..8].to_vec()).as_str());
-    
-    let user_info =
-        borsh::from_slice::<User>(&user_info_bz[8..]).expect("must be parsed as drift::User");
-    let user_order_id = user_info.next_order_id.try_into().unwrap();
-
     let order_params = OrderParams {
         order_type: OrderType::Market,
         market_type: MarketType::Perp,
@@ -265,7 +267,10 @@ pub fn fill_perp_market_order(
     let sender = env.contract.address.to_string();
     let percent = percent.u64();
     if percent <= 0 || percent > 100 {
-        return Err(StdError::generic_err(format!("fill percent must be an integer within range 1..100, actual: {}", percent)))
+        return Err(StdError::generic_err(format!(
+            "fill percent must be an integer within range 1..100, actual: {}",
+            percent
+        )));
     }
     let taker_order_id = taker_order_id.u64() as u32;
 
@@ -304,11 +309,24 @@ pub fn fill_perp_market_order(
         .debug(format!("user descriminator: {:?}", taker_info_bz[..8].to_vec()).as_str());
     let taker_info =
         borsh::from_slice::<User>(&taker_info_bz[8..]).expect("must be parsed as drift::User");
+
+    let order_ids = taker_info
+        .orders
+        .iter()
+        .filter(|x| x.status == OrderStatus::Open)
+        .map(|x| x.order_id)
+        .collect::<Vec<u32>>();
     let order = taker_info
         .orders
         .iter()
         .find(|x| x.order_id == taker_order_id)
-        .expect(format!("taker order id {} must exist", taker_order_id).as_str());
+        .expect(
+            format!(
+                "taker order id {} must exist. Existing orders: {:?}",
+                taker_order_id, order_ids
+            )
+            .as_str(),
+        );
 
     // fallback: fill against vAMM
     if !is_in_auction_time(env.block.height, order.slot, order.auction_duration) {

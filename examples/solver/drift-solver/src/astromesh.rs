@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, Int128, Int256, Uint256, Uint64};
+use cosmwasm_std::{Binary, Coin, Int128, Uint64};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
