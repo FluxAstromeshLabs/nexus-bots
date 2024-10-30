@@ -48,6 +48,7 @@ pub struct FISInstruction {
 #[cw_serde]
 pub enum NexusAction {
     PlacePerpMarketOrder {
+        direction: String,
         usdt_amount: Int128,
         leverage: u8,
         market: String,

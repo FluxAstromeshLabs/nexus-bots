@@ -105,6 +105,7 @@ pub fn place_perp_market_order(
     usdt_amount: Int128,
     leverage: u8,
     auction_duration: u8,
+    direction: String,
     // fis[0]: cosmos: acc link
     // fis[1]: svm: accounts [user, market 0, market 1, market 2]
     fis_input: &Vec<FISInput>,
@@ -161,8 +162,22 @@ pub fn place_perp_market_order(
 
     // 3. place order
     let market_price = oracle_price_from_perp_market(&market_account.data)?;
+    if direction != "long" && direction != "short" {
+        return Err(StdError::generic_err("direction must be either 'long' or 'short'"));
+    }
+
+    let order_direction: PositionDirection;
+    let start_price: i64;
+    let end_price: i64;
+    if direction == "long" {
+        order_direction = PositionDirection::Long;
+        (start_price, end_price) = (market_price * 998 / 1000, market_price);
+    } else {
+        order_direction = PositionDirection::Short;
+        (start_price, end_price) = (market_price * 1002 / 1000, market_price);
+    }
     let expire_time = env.block.time.seconds() as i64 + 30;
-    let (start_price, end_price) = (market_price * 998 / 1000, market_price);
+    
     // base_asset_amount = usdt_amount * leverage / price
 
     let user_info = from_json::<Account>(user_info_bz)?;
@@ -181,10 +196,12 @@ pub fn place_perp_market_order(
         borsh::from_slice::<User>(&user_info_bz[8..]).expect("must be parsed as drift::User");
     let user_order_id = user_info.next_order_id.try_into().unwrap();
 
+    
+
     let order_params = OrderParams {
         order_type: OrderType::Market,
         market_type: MarketType::Perp,
-        direction: PositionDirection::Long,
+        direction: order_direction,
         user_order_id,
         base_asset_amount: quote_asset_amount * (leverage as u64) * DRIFT_DEFAULT_PERCISION
             / (market_price as u64),
@@ -198,8 +215,8 @@ pub fn place_perp_market_order(
         trigger_condition: OrderTriggerCondition::Above,
         oracle_price_offset: Some(0),
         auction_duration: Some(auction_duration),
-        auction_start_price: Some(start_price),
-        auction_end_price: Some(end_price),
+        auction_start_price: Some(start_price.try_into().unwrap()),
+        auction_end_price: Some(end_price.try_into().unwrap()),
     };
 
     let place_order_ixs = create_place_order_ix(svm_addr.clone(), order_params)?;
@@ -367,6 +384,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let action = from_json::<NexusAction>(msg.msg)?;
     match action {
         NexusAction::PlacePerpMarketOrder {
+            direction,
             usdt_amount,
             leverage,
             market,
@@ -378,6 +396,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             usdt_amount,
             leverage,
             auction_duration,
+            direction,
             &msg.fis_input,
         ),
         NexusAction::FillPerpMarketOrder {
