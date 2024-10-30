@@ -195,7 +195,7 @@ pub fn place_perp_market_order(
     // 2. deposit usdt
     let quote_asset_amount = usdt_amount.i128() as u64;
     let cosmos_addr = env.contract.address.to_string();
-    let astro_transfer_ix = astro_transfer(cosmos_addr.clone(), 1_000_000_000);
+    let astro_transfer_ix = astro_transfer(cosmos_addr.clone(), quote_asset_amount);
     instructions.extend(astro_transfer_ix);
 
     let deposit_ixs = create_deposit_usdt_ix(deps, svm_addr.clone(), quote_asset_amount)?;
