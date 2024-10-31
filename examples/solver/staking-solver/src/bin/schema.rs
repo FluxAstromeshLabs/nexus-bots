@@ -23,10 +23,10 @@ pub struct Prompt {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Prompts {
-    pub stake_default: Prompt,
-    pub stake: Prompt,
+    pub delegate: Prompt,
+    pub undelegate: Prompt,
+    pub redelegate: Prompt,
     pub claim_all_rewards: Prompt,
-    pub unstake_all: Prompt,
     pub claim_rewards_and_restake: Prompt,
 }
 
@@ -43,39 +43,29 @@ pub struct Schema {
 
 fn main() {
 
-    let stake_default_prompt = Prompt {
-        template: "stake ${amount:number} lux".to_string(),
-        msg_fields: vec![
-            "amount".to_string()
-        ],
-        query: Query {
-            instructions: vec![QueryInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_QUERY".to_string(),
-                address: Binary::new(vec![]),
-                input: vec![Binary::from(
-                    "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                )],
-            }],
-        },
-    };
-
-    let stake_prompt = Prompt {
-        template: "stake ${amount:number} lux with validator at ${validator_address:string}"
+    let delegate_prompt = Prompt {
+        template: "delegate ${amount:number} lux to validator ${validator_name:string}"
             .to_string(),
-        msg_fields: vec![
-            "amount".to_string(), 
-            "validator_address".to_string()
-        ],
+        msg_fields: vec!["amount".to_string(), "validator_name".to_string()],
         query: Query {
-            instructions: vec![QueryInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_QUERY".to_string(),
-                address: Binary::new(vec![]),
-                input: vec![Binary::from(
-                    "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                )],
-            }],
+            instructions: vec![
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
+                    )],
+                },
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/staking/v1beta1/validators".as_bytes(),
+                    )],
+                },
+            ],
         },
     };
 
@@ -87,59 +77,103 @@ fn main() {
             "new_validator_address".to_string(),
         ],
         query: Query {
-            instructions: vec![QueryInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_QUERY".to_string(),
-                address: Binary::new(vec![]),
-                input: vec![Binary::from(
-                    "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                )],
-            }],
+            instructions: vec![
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
+                    )],
+                },
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/staking/v1beta1/validators".as_bytes(),
+                    )],
+                },
+            ],
+        },
+    };
+
+    let undelegate_prompt = Prompt {
+        template: "undelegate ${amount:number} lux from validator ${validator_name:string}".to_string(),
+        msg_fields: vec![
+            "amount".to_string(),
+            "validator_name".to_string(),
+        ],
+        query: Query {
+            instructions: vec![
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
+                    )],
+                },
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/staking/v1beta1/validators".as_bytes(),
+                    )],
+                },
+            ],
         },
     };
 
     let claim_all_rewards_prompt = Prompt {
-        template: "collect all accumulated staking rewards".to_string(),
+        template: "claim all rewards from all validators".to_string(),
         msg_fields: vec![],
         query: Query {
-            instructions: vec![QueryInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_QUERY".to_string(),
-                address: Binary::new(vec![]),
-                input: vec![Binary::from(
-                    "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                )],
-            }],
+            instructions: vec![
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
+                    )],
+                },
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/staking/v1beta1/validators".as_bytes(),
+                    )],
+                },
+            ],
         },
     };
 
-    let unstake_all_prompt = Prompt {
-        template: "withdraw all staked lux".to_string(),
-        msg_fields: vec![],
-        query: Query {
-            instructions: vec![QueryInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_QUERY".to_string(),
-                address: Binary::new(vec![]),
-                input: vec![Binary::from(
-                    "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                )],
-            }],
-        },
-    };
 
-    let claim_rewards_and_restake_prompt = Prompt {
-        template: "claim rewards and restake".to_string(),
+    let claim_rewards_and_redelegate_prompt = Prompt {
+        template: "claim all rewards and delegate to same validators".to_string(),
         msg_fields: vec![],
         query: Query {
-            instructions: vec![QueryInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_QUERY".to_string(),
-                address: Binary::new(vec![]),
-                input: vec![Binary::from(
-                    "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                )],
-            }],
+            instructions: vec![
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
+                    )],
+                },
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/staking/v1beta1/validators".as_bytes(),
+                    )],
+                },
+            ],
         },
     };
 
@@ -147,11 +181,7 @@ fn main() {
     let group = Group {
         name: "Staking Solver".to_string(),
         prompts: Prompts {
-            stake_default: stake_default_prompt,
-            stake: stake_prompt,
-            claim_all_rewards: claim_all_rewards_prompt,
-            unstake_all: unstake_all_prompt,
-            claim_rewards_and_restake: claim_rewards_and_restake_prompt,
+           
         },
     };
 
