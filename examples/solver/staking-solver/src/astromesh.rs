@@ -3,21 +3,21 @@ use cosmwasm_std::{Coin, Uint128};
 
 #[cw_serde]
 pub enum NexusAction {
-    StakeDefault{
+    StakeDefault {
         amount: Uint128,
     },
-    Stake{
+    Stake {
         amount: Uint128,
         validator_address: String,
     },
-    ReDelegate{
+    ReDelegate {
         amount: Uint128,
         src_validator_address: String,
         new_validator_address: String,
     },
-    ClaimAllRewards{},
-    UnstakeAll{},
-    ClaimRewardsAndRestake{},
+    ClaimAllRewards {},
+    UnstakeAll {},
+    ClaimRewardsAndRestake {},
 }
 
 #[cw_serde]
