@@ -1,12 +1,12 @@
 pub mod astromesh;
+use astromesh::{
+    MsgBeginRedelegate, MsgDelegate, MsgUndelegate, MsgWithdrawDelegatorReward, NexusAction,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin,
     DelegationTotalRewardsResponse, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
     Uint128,
-};
-use astromesh::{NexusAction, MsgBeginRedelegate, MsgDelegate, MsgUndelegate, 
-    MsgWithdrawDelegatorReward,
 };
 use std::vec::Vec;
 
@@ -176,7 +176,11 @@ pub fn claim_all_rewards(deps: Deps, env: Env, fis_input: Vec<FisInput>) -> StdR
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
 
-pub fn claim_rewards_and_restake(deps: Deps, env: Env, fis_input: Vec<FisInput>) -> StdResult<Binary> {
+pub fn claim_rewards_and_restake(
+    deps: Deps,
+    env: Env,
+    fis_input: Vec<FisInput>,
+) -> StdResult<Binary> {
     let delegator_address = env.contract.address.to_string();
     let mut instructions = vec![];
 
@@ -293,9 +297,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let action = from_json::<NexusAction>(msg.msg)?;
     match action {
         NexusAction::StakeDefault { amount } => stake_default(deps, env, amount),
-        NexusAction::Stake { amount, validator_address } => stake(deps, env, amount, validator_address),
+        NexusAction::Stake {
+            amount,
+            validator_address,
+        } => stake(deps, env, amount, validator_address),
         NexusAction::ClaimAllRewards {} => claim_all_rewards(deps, env, msg.fis_input),
-        NexusAction::ClaimRewardsAndRestake {} => claim_rewards_and_restake(deps, env, msg.fis_input),
+        NexusAction::ClaimRewardsAndRestake {} => {
+            claim_rewards_and_restake(deps, env, msg.fis_input)
+        }
         NexusAction::UnstakeAll {} => unstake_all(deps, env, msg.fis_input),
         NexusAction::ReDelegate {
             amount,
