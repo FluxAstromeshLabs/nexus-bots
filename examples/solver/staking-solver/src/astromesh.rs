@@ -7,16 +7,11 @@ pub enum NexusAction {
         amount: Uint128,
         validator_name: String,
     },
-    Redelegate {
-        amount: Uint128,
-        src_validator_address: String,
-        new_validator_address: String,
-    },
-    ClaimAllRewards {},
     Undelegate {
         amount: Uint128,
         validator_name: String,
     },
+    ClaimAllRewards {},
     ClaimRewardsAndRedelegate {},
 }
 

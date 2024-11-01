@@ -181,13 +181,88 @@ pub fn delegate(
     fis_input: &Vec<FisInput>,
 ) -> StdResult<Binary> {
     let delegator_address = env.contract.address.to_string();
-    let validator_address = get_validator_by_name(fis_input, validator_name.clone())?;
+
+    let fis = &fis_input[0];
+    let validators_response = from_json::<ValidatorResponse>(fis.data.get(0).unwrap()).unwrap();
+
+    if validators_response.validators.len() == 0 {
+        return Err(StdError::generic_err(
+            format!("No validators found").as_str(),
+        ));
+    }
+
+    let mut validator_address: String = "".to_string();
+    for idx in 0..validators_response.validators.len() {
+        if validators_response.validators[idx].description.moniker == validator_name {
+            validator_address = validators_response.validators[idx].operator_address.clone();
+        }
+    }
+
+    if validator_address == "" {
+        return Err(StdError::generic_err(
+            format!("Validator {} not found", validator_name).as_str(),
+        ));
+    }
 
     let instruction = ix_delegate(deps, amount, validator_address, delegator_address);
     Ok(to_json_binary(&StrategyOutput {
         instructions: vec![instruction],
     })
     .unwrap())
+}
+
+
+pub fn undelegate(
+    deps: Deps,
+    env: Env,
+    amount: Uint128,
+    validator_name: String,
+    fis_input: &Vec<FisInput>,
+) -> StdResult<Binary> {
+    let delegator_address = env.contract.address.to_string();
+    let mut instructions = vec![];
+    
+    let rewards = get_rewards(deps, &fis_input.clone())?;
+    let validator_address = get_validator_by_name(fis_input, validator_name.clone())?;
+
+    
+    for idx in 0..rewards.len() {
+        if rewards[idx].validator_address != validator_address {
+            continue;
+        }
+        
+        let reward = &rewards[idx].reward[0];
+        let reward_amount_uint256 = reward.amount.to_uint_floor();
+        let reward_amount = reward_amount_uint256
+        .to_string()
+        .parse::<Uint128>()
+        .unwrap();
+    
+        if reward_amount < amount {
+            return Err(StdError::generic_err(
+                format!("Not enough rewards to undelegate").as_str(),
+            ));
+        }
+        
+        instructions.push(ix_undelegate(
+            deps,
+            delegator_address.clone(),
+            validator_address.clone(),
+            amount,
+        ));
+        
+        instructions.push(ix_withdraw_delegator_reward(
+            deps,
+            validator_address.clone(),
+            delegator_address.clone(),
+        ));
+        
+        return Ok(to_json_binary(&StrategyOutput { instructions }).unwrap());
+    }
+
+    Err(StdError::generic_err(
+        format!("Validator {} not found", validator_name).as_str(),
+    ))
 }
 
 pub fn claim_all_rewards(deps: Deps, env: Env, fis_input: &Vec<FisInput>) -> StdResult<Binary> {
@@ -245,58 +320,6 @@ pub fn claim_rewards_and_redelegate(
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
 
-pub fn undelegate(
-    deps: Deps,
-    env: Env,
-    amount: Uint128,
-    validator_name: String,
-    fis_input: &Vec<FisInput>,
-) -> StdResult<Binary> {
-    let delegator_address = env.contract.address.to_string();
-    let mut instructions = vec![];
-
-    let rewards = get_rewards(deps, &fis_input.clone())?;
-    let validator_address = get_validator_by_name(&fis_input, validator_name.clone())?;
-
-    for idx in 0..rewards.len() {
-        if rewards[idx].validator_address != validator_address {
-            continue;
-        }
-
-        let reward = &rewards[idx].reward[0];
-        let reward_amount_uint256 = reward.amount.to_uint_floor();
-        let reward_amount = reward_amount_uint256
-            .to_string()
-            .parse::<Uint128>()
-            .unwrap();
-
-        if reward_amount < amount {
-            return Err(StdError::generic_err(
-                format!("Not enough rewards to undelegate").as_str(),
-            ));
-        }
-
-        instructions.push(ix_undelegate(
-            deps,
-            delegator_address.clone(),
-            validator_address.clone(),
-            amount,
-        ));
-
-        instructions.push(ix_withdraw_delegator_reward(
-            deps,
-            validator_address.clone(),
-            delegator_address.clone(),
-        ));
-
-        return Ok(to_json_binary(&StrategyOutput { instructions }).unwrap());
-    }
-
-    Err(StdError::generic_err(
-        format!("Validator {} not found", validator_name).as_str(),
-    ))
-}
-
 pub fn redelegate(
     _deps: Deps,
     env: Env,
@@ -336,24 +359,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             amount,
             validator_name,
         } => delegate(deps, env, amount, validator_name, &msg.fis_input),
-        NexusAction::ClaimAllRewards {} => claim_all_rewards(deps, env, &msg.fis_input),
-        NexusAction::ClaimRewardsAndRedelegate {} => {
-            claim_rewards_and_redelegate(deps, env, &msg.fis_input)
-        }
         NexusAction::Undelegate {
             amount,
             validator_name,
         } => undelegate(deps, env, amount, validator_name, &msg.fis_input),
-        NexusAction::Redelegate {
-            amount,
-            src_validator_address,
-            new_validator_address,
-        } => redelegate(
-            deps,
-            env,
-            amount,
-            src_validator_address,
-            new_validator_address,
-        ),
+        NexusAction::ClaimAllRewards {} => claim_all_rewards(deps, env, &msg.fis_input),
+        NexusAction::ClaimRewardsAndRedelegate {} => {
+            claim_rewards_and_redelegate(deps, env, &msg.fis_input)
+        }
     }
 }
