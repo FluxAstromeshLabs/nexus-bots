@@ -88,11 +88,6 @@ impl TransactionBuilder {
         }
     }
 
-    pub fn add_instruction(&mut self, ix: InstructionMeta) -> &mut Self {
-        self.instructions.push(ix);
-        self
-    }
-
     pub fn add_instructions(&mut self, ixs: Vec<InstructionMeta>) -> &mut Self {
         self.instructions.extend(ixs);
         self

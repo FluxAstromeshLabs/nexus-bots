@@ -1,8 +1,7 @@
 use astromesh::{FISInput, FISInstruction, MsgAstroTransfer, NexusAction};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128,
-    MessageInfo, Response, StdError, StdResult, Uint128, Uint64,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, MessageInfo, QuerierWrapper, Response, StdError, StdResult, Uint128, Uint64
 };
 use drift::{
     create_deposit_usdt_ix, create_fill_order_jit_ixs, create_fill_order_vamm_ix,
@@ -259,19 +258,12 @@ pub fn fill_perp_market_order(
     env: Env,
     taker_svm: String,
     taker_order_id: Uint64,
-    percent: Uint64,
+    quantity: Uint64,
     // fis[0]: cosmos: acc link
     // fis[1]: svm: accounts [maker_user, taker_user]
     fis_input: &Vec<FISInput>,
 ) -> StdResult<Binary> {
     let sender = env.contract.address.to_string();
-    let percent = percent.u64();
-    if percent <= 0 || percent > 100 {
-        return Err(StdError::generic_err(format!(
-            "fill percent must be an integer within range 1..100, actual: {}",
-            percent
-        )));
-    }
     let taker_order_id = taker_order_id.u64() as u32;
 
     let sender_svm_link = from_json::<AccountLink>(fis_input.get(0).unwrap().data.get(0).unwrap())?; // sender svm
@@ -305,8 +297,6 @@ pub fn fill_perp_market_order(
         tx_builder.add_instructions(initialize_ixs);
     }
 
-    deps.api
-        .debug(format!("user descriminator: {:?}", taker_info_bz[..8].to_vec()).as_str());
     let taker_info =
         borsh::from_slice::<User>(&taker_info_bz[8..]).expect("must be parsed as drift::User");
 
@@ -328,26 +318,13 @@ pub fn fill_perp_market_order(
             .as_str(),
         );
 
-    // fallback: fill against vAMM
+    // if not in auction time => do nothing
     if !is_in_auction_time(env.block.height, order.slot, order.auction_duration) {
-        let fill_vamm = create_fill_order_vamm_ix(svm_addr, taker_svm, taker_order_id)?;
-
-        tx_builder.add_instructions(fill_vamm);
-        let msg = tx_builder.build(vec![sender.clone()], 10_000_000);
-
-        let instruction = FISInstruction {
-            plane: "SVM".to_string(),
-            action: "VM_INVOKE".to_string(),
-            address: "".to_string(),
-            msg: to_json_vec(&msg)?,
-        };
         return to_json_binary(&StrategyOutput {
-            instructions: vec![instruction],
+            instructions: vec![],
         });
     }
-    let amount_to_fill =
-        (order.base_asset_amount - order.base_asset_amount_filled) * (percent as u64) / 100;
-    let usdt_to_deposit = amount_to_fill * order.price / DRIFT_DEFAULT_PERCISION;
+    let usdt_to_deposit = quantity.u64() * order.price / DRIFT_DEFAULT_PERCISION;
     let deposit_ixs = create_deposit_usdt_ix(deps, svm_addr.clone(), usdt_to_deposit)?;
     tx_builder.add_instructions(deposit_ixs);
 
@@ -361,7 +338,7 @@ pub fn fill_perp_market_order(
         market_type: MarketType::Perp,
         direction,
         user_order_id: 0,
-        base_asset_amount: amount_to_fill,
+        base_asset_amount: quantity.u64(),
         price: order.auction_start_price as u64,
         market_index: order.market_index,
         reduce_only: false,
@@ -439,13 +416,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         NexusAction::FillPerpMarketOrder {
             taker_svm_address,
             taker_order_id,
-            percent,
+            quantity,
         } => fill_perp_market_order(
             deps,
             env,
             taker_svm_address,
             taker_order_id,
-            percent,
+            quantity,
             &msg.fis_input,
         ),
     }

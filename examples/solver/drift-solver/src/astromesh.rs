@@ -57,6 +57,6 @@ pub enum NexusAction {
     FillPerpMarketOrder {
         taker_svm_address: String,
         taker_order_id: Uint64,
-        percent: Uint64,
+        quantity: Uint64,
     },
 }
