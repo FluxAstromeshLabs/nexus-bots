@@ -1,10 +1,10 @@
 use astromesh::{FISInput, FISInstruction, MsgAstroTransfer, NexusAction};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, MessageInfo, QuerierWrapper, Response, StdError, StdResult, Uint128, Uint64
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int128, MessageInfo, Response, StdError, StdResult, Uint128, Uint64
 };
 use drift::{
-    create_deposit_usdt_ix, create_fill_order_jit_ixs, create_fill_order_vamm_ix,
+    create_deposit_usdt_ix, create_fill_order_jit_ixs,
     create_initialize_user_ixs, create_place_order_ix, oracle_price_from_perp_market, MarketType,
     OrderParams, OrderStatus, OrderTriggerCondition, OrderType, PositionDirection, PostOnlyParam,
     User, DRIFT_DEFAULT_PERCISION, PERP_MARKET_DISCRIMINATOR,
@@ -306,6 +306,7 @@ pub fn fill_perp_market_order(
         .filter(|x| x.status == OrderStatus::Open)
         .map(|x| x.order_id)
         .collect::<Vec<u32>>();
+
     let order = taker_info
         .orders
         .iter()
@@ -324,7 +325,14 @@ pub fn fill_perp_market_order(
             instructions: vec![],
         });
     }
-    let usdt_to_deposit = quantity.u64() * order.price / DRIFT_DEFAULT_PERCISION;
+
+    let mut fillable_quantity = quantity.u64();
+    // try to fill all fillable amount to improve UX
+    if fillable_quantity > order.base_asset_amount - order.base_asset_amount_filled {
+        fillable_quantity = order.base_asset_amount - order.base_asset_amount_filled
+    }
+
+    let usdt_to_deposit = fillable_quantity * order.price / DRIFT_DEFAULT_PERCISION;
     let deposit_ixs = create_deposit_usdt_ix(deps, svm_addr.clone(), usdt_to_deposit)?;
     tx_builder.add_instructions(deposit_ixs);
 
@@ -338,7 +346,7 @@ pub fn fill_perp_market_order(
         market_type: MarketType::Perp,
         direction,
         user_order_id: 0,
-        base_asset_amount: quantity.u64(),
+        base_asset_amount: fillable_quantity,
         price: order.auction_start_price as u64,
         market_index: order.market_index,
         reduce_only: false,
