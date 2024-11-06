@@ -65,8 +65,7 @@ mod tests {
         // Initialize the transaction builder
         let mut tx_builder = TransactionBuilder::new();
         // Add both create account instructions
-        tx_builder.add_instruction(create_account1);
-        tx_builder.add_instruction(create_account2);
+        tx_builder.add_instructions(vec![create_account1, create_account2]);
 
         // Define dummy cosmos signers with base58 encoding and compute budget
         let cosmos_signers = vec![
