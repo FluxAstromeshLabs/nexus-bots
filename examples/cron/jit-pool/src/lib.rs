@@ -1,9 +1,12 @@
+use astromesh::MsgAstroTransfer;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int64, MessageInfo, Response, StdResult, Uint64
+    coin, entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, HexBinary, Int64, MessageInfo, Response, StdResult, Uint256, Uint64
 };
-use std::vec::Vec;
+use evm::{Fill, LiquidityRequestEvent};
+use std::{collections::BTreeMap, vec::Vec};
 mod evm;
+mod astromesh;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -63,6 +66,7 @@ pub struct InterPool {
     pub next_commission_time: Uint64,
 }
 
+#[cw_serde]
 pub struct EmitLogEvent {
     pub op: String,                // Operation code
     pub address: String,           // Address related to the event
@@ -125,10 +129,8 @@ pub fn execute(
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // parse cron input
-    let input = msg.fis_input.get(0).unwrap().data.get(0).unwrap();
-    deps.api
-        .debug(format!("pool input: {:?}", input.to_string()).as_str());
-    let pool_info = from_json::<InterpoolResponse>(input)?;
+    let pool_input = msg.fis_input.get(0).unwrap().data.get(0).unwrap();
+    let pool_info = from_json::<InterpoolResponse>(pool_input)?;
     if pool_info.pool.inventory_snapshot.is_empty() {
         return Ok(to_json_binary(&StrategyOutput {
             instructions: vec![],
@@ -136,46 +138,43 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         .unwrap());
     }
 
-    deps.api
-        .debug(format!("pool info: {:?}", pool_info).as_str());
+    let mut coin_map = BTreeMap::new();
+    for snapshot in pool_info.pool.inventory_snapshot {
+        coin_map.insert(snapshot.denom, snapshot.amount);
+    }
+
+    let event_inputs = &msg.fis_input.get(1).unwrap().data;
+    for e in event_inputs {
+        let parsed_event = from_json::<EmitLogEvent>(e)?;
+        if parsed_event.topics.len() < 1 {
+            continue
+        }
+
+        if !parsed_event.topics[0].to_vec().eq(LiquidityRequestEvent::SIGNATURE) {
+            continue
+        }
+
+        // TODO: fill them as long as pool has enough money
+        let liquidity_request = LiquidityRequestEvent::from_bytes(&parsed_event.data)?;
+        let denom_hex = HexBinary::from(liquidity_request.dst_token).to_string();
+        let pool_denom_dst = match evm::denom_to_cosmos(denom_hex.as_str()) {
+            Ok(d) => d,
+            _ => continue
+        };
+        let existing_fund = Uint256::from_u128(coin_map.get(pool_denom_dst).unwrap().u128());
+        if existing_fund.lt(&liquidity_request.dst_amount) {
+            continue
+        }
+
+        // fill the order = transfer funds + approve contract to spend money + fill + transfer back the amount to pool
+
+        // MsgAstroTransfer::new(sender, receiver, src_plane, dst_plane, coin)
+        // Approve
+        // Fill
+        // MsgAstroTransfer back
+    }
+
     // parse command, we can store it as proto bytes, encrypted binary
     let mut instructions = vec![];
-
-    // send usdt
-    instructions.push(FISInstruction {
-        plane: "COSMOS".to_string(),
-        action: "COSMOS_BANK_SEND".to_string(),
-        address: "".to_string(),
-        msg: to_json_binary(&MsgSend {
-            from_address: pool_info.pool.pool_account.clone(),
-            to_address: pool_info.pool.operator_addr,
-            amount: vec![Coin {
-                denom: "usdt".to_string(),
-                amount: 9u128.into(),
-            }],
-        })
-        .unwrap()
-        .to_vec(),
-    });
-
-    instructions.push(FISInstruction {
-        plane: "COSMOS".to_string(),
-        action: "COSMOS_INVOKE".to_string(),
-        address: "".to_string(),
-        msg: to_json_vec(&MsgUpdatePool {
-            ty: "/flux.interpool.v1beta1.MsgUpdatePool".to_string(),
-            sender: pool_info.pool.pool_account.clone(),
-            pool_id: pool_info.pool.pool_id,
-            input_blob: vec![],
-            output_blob: vec![],
-            charge_management_fee: false,
-            trading_fee: vec![Coin {
-                denom: "usdt".to_string(),
-                amount: 1u128.into(),
-            }],
-            cron_id: "".to_string(),
-        }).unwrap(),
-    });
-
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
 }
