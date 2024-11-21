@@ -3,6 +3,7 @@ use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, Int64, MessageInfo, Response, StdResult, Uint64
 };
 use std::vec::Vec;
+mod evm;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -60,6 +61,13 @@ pub struct InterPool {
     pub cron_id: String,   // Cron job controlling the pool
     pub pool_account: String,
     pub next_commission_time: Uint64,
+}
+
+pub struct EmitLogEvent {
+    pub op: String,                // Operation code
+    pub address: String,           // Address related to the event
+    pub topics: Vec<Binary>,       // List of topics as Binary
+    pub data: Binary,              // Data as Binary
 }
 
 #[cw_serde]
