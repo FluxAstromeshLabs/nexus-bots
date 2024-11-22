@@ -4,11 +4,11 @@ use std::convert::TryInto;
 
 #[cw_serde]
 pub struct LiquidityRequestEvent {
-    pub user: [u8; 20],       // The address triggering the swap (as 20-byte array)
-    pub src_token: [u8; 20],  // Address of the source token (as 20-byte array)
-    pub src_amount: Uint256,  // Source amount
-    pub dst_token: [u8; 20],  // Address of the destination token (as 20-byte array)
-    pub dst_amount: Uint256,  // Desired destination amount
+    pub user: [u8; 20],      // The address triggering the swap (as 20-byte array)
+    pub src_token: [u8; 20], // Address of the source token (as 20-byte array)
+    pub src_amount: Uint256, // Source amount
+    pub dst_token: [u8; 20], // Address of the destination token (as 20-byte array)
+    pub dst_amount: Uint256, // Desired destination amount
 }
 
 impl LiquidityRequestEvent {
@@ -23,10 +23,16 @@ impl LiquidityRequestEvent {
         }
 
         // Extract 32-byte chunks and convert them to the appropriate types
-        let user = data[12..32].try_into().map_err(|_| StdError::generic_err("Invalid user address length"))?;
-        let src_token = data[44..64].try_into().map_err(|_| StdError::generic_err("Invalid source token address length"))?;
+        let user = data[12..32]
+            .try_into()
+            .map_err(|_| StdError::generic_err("Invalid user address length"))?;
+        let src_token = data[44..64]
+            .try_into()
+            .map_err(|_| StdError::generic_err("Invalid source token address length"))?;
         let src_amount = Uint256::from_be_bytes(data[64..96].try_into().unwrap());
-        let dst_token = data[108..128].try_into().map_err(|_| StdError::generic_err("Invalid destination token address length"))?;
+        let dst_token = data[108..128]
+            .try_into()
+            .map_err(|_| StdError::generic_err("Invalid destination token address length"))?;
         let dst_amount = Uint256::from_be_bytes(data[128..160].try_into().unwrap());
 
         Ok(LiquidityRequestEvent {
@@ -41,9 +47,9 @@ impl LiquidityRequestEvent {
 
 #[cw_serde]
 pub struct Fill {
-    pub user: [u8; 20],       // User address for whom the swap is being filled
-    pub src_token: [u8; 20],  // Address of the source token (ERC20)
-    pub dst_token: [u8; 20],  // Address of the destination token (ERC20)
+    pub user: [u8; 20],      // User address for whom the swap is being filled
+    pub src_token: [u8; 20], // Address of the source token (ERC20)
+    pub dst_token: [u8; 20], // Address of the destination token (ERC20)
 }
 
 impl Fill {
@@ -93,7 +99,6 @@ impl MsgExecuteContract {
     }
 }
 
-
 fn left_pad(input: &[u8], expected_len: usize) -> Result<Vec<u8>, StdError> {
     if input.len() > expected_len {
         return Err(StdError::generic_err(
@@ -108,7 +113,7 @@ fn left_pad(input: &[u8], expected_len: usize) -> Result<Vec<u8>, StdError> {
     Ok(padded)
 }
 
-fn erc20_approve(
+pub fn erc20_approve(
     sender: &String,
     erc20_addr: &[u8; 20],
     delegator: &[u8; 20],
@@ -132,10 +137,9 @@ fn erc20_approve(
     Ok(msg)
 }
 
-
-fn fill(
+pub fn fill(
     sender: &String,
-    contract_address: [u8; 20],
+    contract_address: &[u8; 20],
     user: [u8; 20],
     src_token: [u8; 20],
     dst_token: [u8; 20],
@@ -156,8 +160,7 @@ fn fill(
     Ok(msg)
 }
 
-
-fn parse_addr(addr: &str) -> [u8; 20] {
+pub fn parse_addr(addr: &str) -> [u8; 20] {
     let hex_binary = HexBinary::from_hex(addr).unwrap();
     hex_binary.to_array().unwrap()
 }

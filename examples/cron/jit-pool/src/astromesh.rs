@@ -4,6 +4,9 @@ use cosmwasm_std::Coin;
 pub const PLANE_EVM: &str = "EVM";
 pub const PLANE_COSMOS: &str = "COSMOS";
 
+pub const ACTION_COSMOS_INVOKE: &str = "COSMOS_INVOKE";
+pub const ACTION_VM_INVOKE: &str = "VM_INVOKE";
+
 #[cw_serde]
 pub struct MsgAstroTransfer {
     #[serde(rename = "@type")]
