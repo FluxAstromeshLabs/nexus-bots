@@ -1,5 +1,5 @@
 [package]
-name = "pool-cron"
+name = "dummy-pool-cron"
 version = "0.0.1"
 edition = "2021"
 

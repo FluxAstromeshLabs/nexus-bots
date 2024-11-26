@@ -1,4 +1,6 @@
-use astromesh::{MsgAstroTransfer, ACTION_COSMOS_INVOKE, PLANE_COSMOS, PLANE_EVM};
+use astromesh::{
+    MsgAstroTransfer, ACTION_COSMOS_INVOKE, ACTION_VM_INVOKE, PLANE_COSMOS, PLANE_EVM,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     coin, entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env,
@@ -139,8 +141,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         .unwrap());
     }
 
-    let (_, pool_account_bz) = bech32::decode(pool_info.pool.pool_account.as_str()).unwrap();
-
     let mut coin_map = BTreeMap::new();
     for snapshot in pool_info.pool.inventory_snapshot {
         coin_map.insert(snapshot.denom, snapshot.amount);
@@ -154,6 +154,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             continue;
         }
 
+        deps.api
+            .debug(format!("topic: {}", parsed_event.topics[0]).as_str());
         if !parsed_event.topics[0]
             .to_vec()
             .eq(LiquidityRequestEvent::SIGNATURE)
@@ -161,7 +163,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             continue;
         }
 
-        // TODO: fill them as long as pool has enough money
         let liquidity_request = LiquidityRequestEvent::from_bytes(&parsed_event.data)?;
         let denom_hex = HexBinary::from(liquidity_request.dst_token).to_string();
         let pool_denom_dst = match evm::denom_to_cosmos(denom_hex.as_str()) {
@@ -179,6 +180,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         // MsgAstroTransfer::new(sender, receiver, src_plane, dst_plane, coin)
         let dst_amount =
             Uint128::from_str(liquidity_request.dst_amount.to_string().as_str()).unwrap();
+        let src_amount =
+            Uint128::from_str(liquidity_request.src_amount.to_string().as_str()).unwrap();
+
         let transfer_to_evm = FISInstruction {
             plane: PLANE_COSMOS.to_string(),
             action: ACTION_COSMOS_INVOKE.to_string(),
@@ -199,12 +203,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let liquidity_contract = parse_addr(parsed_event.address.as_str());
         let approve = FISInstruction {
             plane: PLANE_EVM.to_string(),
-            action: ACTION_COSMOS_INVOKE.to_string(),
+            action: ACTION_VM_INVOKE.to_string(),
             address: "".to_string(),
             msg: to_json_vec(&erc20_approve(
                 &pool_info.pool.pool_account,
+                &liquidity_request.dst_token,
                 &parse_addr(parsed_event.address.as_str()),
-                &pool_account_bz.clone().try_into().unwrap(),
                 liquidity_request.dst_amount,
             )?)
             .unwrap(),
@@ -213,7 +217,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         // Fill
         let fill = FISInstruction {
             plane: PLANE_EVM.to_string(),
-            action: ACTION_COSMOS_INVOKE.to_string(),
+            action: ACTION_VM_INVOKE.to_string(),
             address: "".to_string(),
             msg: to_json_vec(&fill(
                 &pool_info.pool.pool_account,
@@ -238,9 +242,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 Coin {
                     denom: format!(
                         "astro/{}",
-                        HexBinary::from(liquidity_request.dst_token).to_hex()
+                        HexBinary::from(liquidity_request.src_token).to_hex()
                     ),
-                    amount: dst_amount,
+                    amount: src_amount,
                 },
             ))
             .unwrap(),

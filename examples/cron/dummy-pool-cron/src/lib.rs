@@ -115,7 +115,7 @@ pub fn execute(
 }
 
 #[entry_point]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // parse cron input
     let input = msg.fis_input.get(0).unwrap().data.get(0).unwrap();
     deps.api
@@ -160,7 +160,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             pool_id: pool_info.pool.pool_id,
             input_blob: vec![],
             output_blob: vec![],
-            charge_management_fee: false,
+            charge_management_fee: env.block.time.nanos() > pool_info.pool.next_commission_time.u64(),
             trading_fee: vec![Coin {
                 denom: "usdt".to_string(),
                 amount: 1u128.into(),

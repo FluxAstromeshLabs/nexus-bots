@@ -12,7 +12,10 @@ pub struct LiquidityRequestEvent {
 }
 
 impl LiquidityRequestEvent {
-    pub const SIGNATURE: &[u8] = &[1];
+    pub const SIGNATURE: &'static [u8] = &[
+        34, 96, 129, 198, 12, 183, 82, 238, 13, 229, 4, 156, 216, 97, 100, 123, 129, 26, 238, 74,
+        23, 107, 67, 43, 131, 193, 246, 84, 60, 60, 205, 70,
+    ];
 
     pub fn from_bytes(data: &[u8]) -> Result<Self, StdError> {
         if data.len() != 160 {
@@ -55,7 +58,7 @@ pub struct Fill {
 impl Fill {
     pub fn serialize(&self) -> Vec<u8> {
         // Selector: first 4 bytes of the given signature hash
-        let selector: [u8; 4] = [0xa7, 0x6d, 0xb3, 0xa9];
+        let selector: [u8; 4] = [167, 109, 179, 169];
 
         // Helper function to pad and encode an address (20 bytes)
         fn encode_address(address: &[u8; 20]) -> Vec<u8> {
@@ -168,9 +171,10 @@ pub fn parse_addr(addr: &str) -> [u8; 20] {
 pub fn denom_to_cosmos(alias: &str) -> Result<&str, StdError> {
     match alias {
         "0c7bd7e65621073f481c5a6cc33876b7fd552c2a" => Ok("btc"),
-        "1a38c7b3f073c038cc7e0e92648e15dd36485259" => Ok("usdt"),
+        "07aa076883658b7ed99d25b1e6685808372c8fe2" => Ok("usdt"),
         "eef74ab95099c8d1ad8de02ba6bdab9cbc9dbf93" => Ok("sol"),
         "d1738300cda711f4e4c6989856c6b83326c6053e" => Ok("eth"),
+        "3d641a2791533b4a0000345ea8d509d01e1ec301" => Ok("lux"),
         _ => Err(StdError::generic_err(format!(
             "unknown evm denom: {}",
             alias
