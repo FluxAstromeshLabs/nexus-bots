@@ -1,6 +1,8 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, Int128, Uint128, Uint64};
+use cosmwasm_std::{Binary, Coin, DenomMetadata, Int128, Uint128, Uint64};
 use serde::{Deserialize, Serialize};
+
+pub const PLANE_COSMOS: &str = "COSMOS";
 
 #[cw_serde]
 pub struct MsgAstroTransfer {
@@ -33,6 +35,39 @@ impl MsgAstroTransfer {
 }
 
 #[cw_serde]
+pub struct InitialMint {
+    pub address: String,
+    pub amount: Uint128,
+}
+
+#[cw_serde]
+pub struct MsgCreateBankDenom {
+    #[serde(rename = "@type")]
+    pub ty: String,
+    pub sender: String,
+    pub metadata: DenomMetadata,
+    pub minter: String,
+    pub initial_mints: Vec<InitialMint>,
+}
+
+impl MsgCreateBankDenom {
+    pub fn new(
+        sender: String,
+        metadata: DenomMetadata,
+        minter: String,
+        initial_mints: Vec<InitialMint>,
+    ) -> Self {
+        MsgCreateBankDenom {
+            ty: "/flux.astromesh.v1beta1.MsgCreateBankDenom".to_string(),
+            sender,
+            metadata,
+            minter,
+            initial_mints,
+        }
+    }
+}
+
+#[cw_serde]
 pub struct FISInput {
     pub data: Vec<Binary>,
 }
@@ -52,15 +87,18 @@ pub enum NexusAction {
         description: String,
         uri: String,
         target_vm: String,
+        solver_address: String,
     },
     Buy {
         denom: String,
         amount: Uint128,
         slippage: Uint128,
+        solver_address: String,
     },
     Sell {
         denom: String,
         amount: Uint128,
         slippage: Uint128,
+        solver_address: String,
     },
 }
