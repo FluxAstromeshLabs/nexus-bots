@@ -108,3 +108,22 @@ pub struct Pagination {
     pub next_key: Option<String>, // This could be null, so use Option
     pub total: String,
 }
+
+#[cw_serde]
+pub struct DelegationResponse {
+    pub delegation_responses: Vec<Delegation>,
+    pub pagination: Pagination,
+}
+
+#[cw_serde]
+pub struct Delegation {
+    pub delegation: DelegationDetail,
+    pub balance: Coin,
+}
+
+#[cw_serde]
+pub struct DelegationDetail {
+    pub delegator_address: String,
+    pub validator_address: String,
+    pub shares: String,
+}
