@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, Coin, DenomMetadata, Int128, Uint128, Uint64};
-use serde::{Deserialize, Serialize};
-
+use tiny_keccak::{Hasher, Keccak};
 pub const PLANE_COSMOS: &str = "COSMOS";
 
 #[cw_serde]
@@ -87,18 +86,122 @@ pub enum NexusAction {
         description: String,
         uri: String,
         target_vm: String,
-        solver_address: String,
     },
     Buy {
         denom: String,
         amount: Uint128,
         slippage: Uint128,
-        solver_address: String,
+        pool_address: String,
     },
     Sell {
         denom: String,
         amount: Uint128,
         slippage: Uint128,
-        solver_address: String,
+        pool_address: String,
     },
+}
+
+#[cw_serde]
+pub struct CommissionConfig {
+    pub management_fee_rate: i64,
+    pub management_fee_interval: i64,
+    pub trading_fee_rate: i64,
+}
+
+impl CommissionConfig {
+    pub fn new(management_fee_rate: i64, management_fee_interval: i64, trading_fee_rate: i64) -> Self {
+        CommissionConfig {
+            management_fee_rate,
+            management_fee_interval,
+            trading_fee_rate,
+        }
+    }
+}
+
+#[cw_serde]
+pub struct MsgCreatePool {
+    #[serde(rename = "@type")]
+    pub ty: String,
+    pub sender: String,
+    pub operator_commission_config: Option<CommissionConfig>,
+}
+
+impl MsgCreatePool {
+    pub fn new(sender: String, operator_commission_config: Option<CommissionConfig>) -> Self {
+        MsgCreatePool {
+            ty: "flux.interpool.v1beta1.MsgCreatePool".to_string(),
+            sender,
+            operator_commission_config,
+        }
+    }
+}
+
+#[cw_serde]
+pub struct MsgUpdatePool {
+    #[serde(rename = "@type")]
+    pub ty: String,
+    pub sender: String,
+    pub pool_id: String,
+    pub input_blob: Vec<u8>,
+    pub output_blob: Vec<u8>,
+    pub charge_management_fee: bool,
+    pub trading_fee: Vec<Coin>,
+    pub cron_id: String,
+}
+
+impl MsgUpdatePool {
+    pub fn new(
+        sender: String,
+        pool_id: String,
+        input_blob: Vec<u8>,
+        output_blob: Vec<u8>,
+        charge_management_fee: bool,
+        trading_fee: Vec<Coin>,
+        cron_id: String,
+    ) -> Self {
+        MsgUpdatePool {
+            ty: "flux.interpool.v1beta1.MsgUpdatePool".to_string(),
+            sender,
+            pool_id,
+            input_blob,
+            output_blob,
+            charge_management_fee,
+            trading_fee,
+            cron_id,
+        }
+    }
+}
+
+#[cw_serde]
+pub struct Account {
+    #[serde(rename = "@type")]
+    pub ty: String,
+    pub address: String,
+    pub pub_key: PublicKey,
+    pub account_number: Uint64,
+    pub sequence: Uint64,
+}
+
+#[cw_serde]
+pub struct PublicKey {
+    #[serde(rename = "@type")]
+    pub ty: String,
+    pub key: String,
+}
+
+#[cw_serde] 
+pub struct AccountResponse {
+    pub account: Account
+}
+
+pub fn keccak256(input: &[u8]) -> [u8; 32] {
+    let mut hash = Keccak::v256();
+    hash.update(input);
+    let mut output = [0u8; 32];
+    hash.finalize(output.as_mut_slice());
+    output
+}
+
+#[cw_serde]
+pub struct DenomDescription {
 }
