@@ -74,7 +74,7 @@ fn main() {
                     action: "COSMOS_QUERY".to_string(),
                     address: Binary::new(vec![]),
                     input: vec![Binary::from(
-                        "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
+                        "/cosmos/staking/v1beta1/delegations/${wallet}".as_bytes(),
                     )],
                 },
                 QueryInstruction {
