@@ -4,10 +4,12 @@ use cosmwasm_std::{
     entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
     Response, StdResult, Uint128,
 };
+use wasm::astroport::Astroport;
 use std::vec::Vec;
 use svm::raydium::Raydium;
 mod astromesh;
 mod svm;
+mod wasm;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -80,51 +82,50 @@ pub struct SimpleEntry {
 #[cw_serde]
 pub struct CronMsg {
     pub vm: String,
+    pub pool_address: String,
 }
 
 #[entry_point]
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let vm = &from_json::<CronMsg>(msg.msg)?.vm;
-    let oracle_bz = msg.fis_input.get(0).unwrap().data.get(0).unwrap();
-    // get oracle price
-    let oracle_data = from_json::<OracleResponse>(oracle_bz)?;
-    let price = oracle_data.entries.get(0).unwrap().value;
+    let cron_msg = from_json::<CronMsg>(msg.msg)?;
+    let vm = cron_msg.vm;
+    let pool_address = cron_msg.pool_address;
+
     // get current liquidity source
-    let quote_amount = from_json::<Coin>(msg.fis_input.get(1).unwrap().data.get(0).unwrap())?;
-    let meme_amount = from_json::<Coin>(msg.fis_input.get(1).unwrap().data.get(1).unwrap())?;
+    let quote_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(0).unwrap())?;
+    let meme_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(1).unwrap())?;
+    // TODO: Get denom link here for EVM, SVM
 
-    let quote_link =
-        from_json::<QueryDenomLinkResponse>(msg.fis_input.get(2).unwrap().data.get(0).unwrap())?;
-    let meme_link =
-        from_json::<QueryDenomLinkResponse>(msg.fis_input.get(2).unwrap().data.get(0).unwrap())?;
     // check if the pool is graduated
-    let graduated = true; // TODO: Check if the pool is graduated
-
+    // TODO: pool graduate condition
+    let graduated = quote_coin.amount.gt(&Uint128::one());
     let mut instructions = vec![];
     if graduated {
-        let (denom_0, denom_1) = if quote_link.dst_addr < meme_link.dst_addr {
-            (quote_link.dst_addr, meme_link.dst_addr)
-        } else {
-            (meme_link.dst_addr, quote_link.dst_addr)
-        };
-        // TODO: get actual amount as well
-        let (amount_0, amount_1) = (Uint128::zero(), Uint128::zero());
+        let (mut denom_0, mut denom_1) = (quote_coin.denom, meme_coin.denom);
+        let (mut amount_0, mut amount_1) = (quote_coin.amount, meme_coin.amount);
+        
+        if denom_0 > denom_1 {
+            (denom_0, denom_1) = (denom_1, denom_0);
+            (amount_0, amount_1) = (amount_1, amount_0);
+        }
 
         // 1. pay creator 0.5 SOL, get 1.5 SOL as fee
-        // TODO: Code here
+        // TODO: Generate fee transfers here
         // 2. create pool in target vm
-        let pool = match vm.as_str() {
-            "SVM" => Raydium {},
+        _deps.api.debug(format!("graduate: vm: {}, coin0:{}{}, coin1:{}{}", vm, denom_0.to_string(), amount_0.u128(), denom_1.to_string(), amount_1.u128()).as_str());
+        let pool: Box<dyn PoolManager> = match vm.as_str() {
+            "SVM" => Box::new(Raydium {}),
+            "WASM" => Box::new(Astroport {}),
             _ => unreachable!(),
         };
 
-        let create_pool_ixs = pool.create_pool(denom_0, denom_1);
+        let create_pool_ixs = pool.create_pool(pool_address.clone(), denom_0.clone(), denom_1.clone());
         instructions.extend(create_pool_ixs);
+        // // 3. denom0, denom1 for liquidity
+        // let proivde_liquidity_ixs = pool.provide_liquidity_no_lp(pool_address.clone(), denom_0.clone(), amount_0, denom_1.clone(), amount_1);
+        // instructions.extend(proivde_liquidity_ixs);
 
-        // 3. denom0, denom1 for liquidity
-        let proivde_liquidity_ixs =
-            pool.provide_liquidity_no_lp("".to_string(), amount_0, amount_1);
-        instructions.extend(proivde_liquidity_ixs);
+        // TODO: disable the cron job after gradauate
     }
 
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())

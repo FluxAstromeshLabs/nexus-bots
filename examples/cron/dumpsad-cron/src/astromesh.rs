@@ -7,6 +7,8 @@ pub const PLANE_EVM: &str = "EVM";
 pub const PLANE_SVM: &str = "SVM";
 pub const PLANE_WASM: &str = "WASM";
 
+pub const ACTION_VM_INVOKE: &str = "VM_INVOKE";
+
 #[cw_serde]
 pub struct MsgAstroTransfer {
     #[serde(rename = "@type")]
@@ -91,12 +93,19 @@ pub struct QueryDenomLinkResponse {
 }
 
 pub trait PoolManager {
-    fn create_pool(&self, denom_0: String, denom_1: String) -> Vec<FISInstruction>;
-
+    fn create_pool(
+        &self,
+        sender: String,
+        denom_0: String,
+        denom_1: String,
+    ) -> Vec<FISInstruction>;
+    
     fn provide_liquidity_no_lp(
         &self,
-        pool_id: String,
+        sender: String,
+        denom_0: String,
         denom_0_amount: Uint128,
+        denom_1: String,
         denom_1_amount: Uint128,
     ) -> Vec<FISInstruction>;
 }

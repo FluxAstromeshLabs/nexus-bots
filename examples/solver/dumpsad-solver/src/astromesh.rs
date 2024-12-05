@@ -1,7 +1,12 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, Coin, DenomMetadata, Int128, Uint128, Uint64};
+use sha2::{Digest, Sha256};
 use tiny_keccak::{Hasher, Keccak};
+
 pub const PLANE_COSMOS: &str = "COSMOS";
+
+pub const QUERY_ACTION_COSMOS_QUERY: &str = "COSMOS_QUERY";
+pub const QUERY_ACTION_COSMOS_BANK_BALANCE: &str = "COSMOS_BANK_BALANCE";
 
 #[cw_serde]
 pub struct MsgAstroTransfer {
@@ -86,6 +91,7 @@ pub enum NexusAction {
         description: String,
         uri: String,
         target_vm: String,
+        bot_id: String,
     },
     Buy {
         denom: String,
@@ -109,7 +115,11 @@ pub struct CommissionConfig {
 }
 
 impl CommissionConfig {
-    pub fn new(management_fee_rate: i64, management_fee_interval: i64, trading_fee_rate: i64) -> Self {
+    pub fn new(
+        management_fee_rate: i64,
+        management_fee_interval: i64,
+        trading_fee_rate: i64,
+    ) -> Self {
         CommissionConfig {
             management_fee_rate,
             management_fee_interval,
@@ -129,7 +139,7 @@ pub struct MsgCreatePool {
 impl MsgCreatePool {
     pub fn new(sender: String, operator_commission_config: Option<CommissionConfig>) -> Self {
         MsgCreatePool {
-            ty: "flux.interpool.v1beta1.MsgCreatePool".to_string(),
+            ty: "/flux.interpool.v1beta1.MsgCreatePool".to_string(),
             sender,
             operator_commission_config,
         }
@@ -147,6 +157,7 @@ pub struct MsgUpdatePool {
     pub charge_management_fee: bool,
     pub trading_fee: Vec<Coin>,
     pub cron_id: String,
+    pub drivers: Vec<String>,
 }
 
 impl MsgUpdatePool {
@@ -158,9 +169,10 @@ impl MsgUpdatePool {
         charge_management_fee: bool,
         trading_fee: Vec<Coin>,
         cron_id: String,
+        drivers: Vec<String>,
     ) -> Self {
         MsgUpdatePool {
-            ty: "flux.interpool.v1beta1.MsgUpdatePool".to_string(),
+            ty: "/flux.interpool.v1beta1.MsgUpdatePool".to_string(),
             sender,
             pool_id,
             input_blob,
@@ -168,6 +180,7 @@ impl MsgUpdatePool {
             charge_management_fee,
             trading_fee,
             cron_id,
+            drivers,
         }
     }
 }
@@ -189,9 +202,9 @@ pub struct PublicKey {
     pub key: String,
 }
 
-#[cw_serde] 
+#[cw_serde]
 pub struct AccountResponse {
-    pub account: Account
+    pub account: Account,
 }
 
 pub fn keccak256(input: &[u8]) -> [u8; 32] {
@@ -202,6 +215,11 @@ pub fn keccak256(input: &[u8]) -> [u8; 32] {
     output
 }
 
-#[cw_serde]
-pub struct DenomDescription {
+pub fn sha256(input: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(input);
+    let result = hasher.finalize();
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&result);
+    hash
 }
