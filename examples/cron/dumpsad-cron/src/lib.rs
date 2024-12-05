@@ -92,13 +92,13 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let pool_address = cron_msg.pool_address;
 
     // get current liquidity source
-    let quote_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(0).unwrap())?;
-    let meme_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(1).unwrap())?;
+    let quote_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(0).unwrap())?; // SOL
+    let meme_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(1).unwrap())?; 
     // TODO: Get denom link here for EVM, SVM
 
     // check if the pool is graduated
-    // TODO: pool graduate condition
-    let graduated = quote_coin.amount.gt(&Uint128::one());
+    // TODO: pool graduate condition (phuc)
+    let graduated = quote_coin.amount.gt(&Uint128::one()); 
     let mut instructions = vec![];
     if graduated {
         let (mut denom_0, mut denom_1) = (quote_coin.denom, meme_coin.denom);
