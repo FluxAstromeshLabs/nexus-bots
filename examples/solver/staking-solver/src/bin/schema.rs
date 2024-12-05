@@ -42,13 +42,35 @@ pub struct Schema {
 }
 
 fn main() {
-
     let delegate_prompt = Prompt {
-        template: "delegate ${amount:number} lux to validator ${validator_name:string}"
+        template: "delegate ${amount:number} lux to validator ${validator_name:string}".to_string(),
+        msg_fields: vec!["amount".to_string(), "validator_name".to_string()],
+        query: Query {
+            instructions: vec![QueryInstruction {
+                plane: "COSMOS".to_string(),
+                action: "COSMOS_QUERY".to_string(),
+                address: Binary::new(vec![]),
+                input: vec![Binary::from(
+                    "/cosmos/staking/v1beta1/validators".as_bytes(),
+                )],
+            }],
+        },
+    };
+
+    let undelegate_prompt = Prompt {
+        template: "undelegate ${amount:number} lux from validator ${validator_name:string}"
             .to_string(),
         msg_fields: vec!["amount".to_string(), "validator_name".to_string()],
         query: Query {
             instructions: vec![
+                QueryInstruction {
+                    plane: "COSMOS".to_string(),
+                    action: "COSMOS_QUERY".to_string(),
+                    address: Binary::new(vec![]),
+                    input: vec![Binary::from(
+                        "/cosmos/staking/v1beta1/delegations/${wallet}".as_bytes(),
+                    )],
+                },
                 QueryInstruction {
                     plane: "COSMOS".to_string(),
                     action: "COSMOS_QUERY".to_string(),
@@ -61,11 +83,42 @@ fn main() {
         },
     };
 
-    let undelegate_prompt = Prompt {
-        template: "undelegate ${amount:number} lux from validator ${validator_name:string}".to_string(),
+    let claim_all_rewards_prompt = Prompt {
+        template: "claim all rewards from all validators".to_string(),
+        msg_fields: vec![],
+        query: Query {
+            instructions: vec![QueryInstruction {
+                plane: "COSMOS".to_string(),
+                action: "COSMOS_QUERY".to_string(),
+                address: Binary::new(vec![]),
+                input: vec![Binary::from(
+                    "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
+                )],
+            }],
+        },
+    };
+
+    let claim_rewards_and_redelegate_prompt = Prompt {
+        template: "claim all rewards and delegate to same validators".to_string(),
+        msg_fields: vec![],
+        query: Query {
+            instructions: vec![QueryInstruction {
+                plane: "COSMOS".to_string(),
+                action: "COSMOS_QUERY".to_string(),
+                address: Binary::new(vec![]),
+                input: vec![Binary::from(
+                    "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
+                )],
+            }],
+        },
+    };
+
+    let redelegate_prompt = Prompt {
+        template: "move ${amount:number} lux from validator ${src_validator_address:string} to ${new_validator_address:string}".to_string(),
         msg_fields: vec![
             "amount".to_string(),
-            "validator_name".to_string(),
+            "src_validator_address".to_string(),
+            "new_validator_address".to_string(),
         ],
         query: Query {
             instructions: vec![
@@ -89,82 +142,18 @@ fn main() {
         },
     };
 
-    
-    
-    let claim_all_rewards_prompt = Prompt {
-        template: "claim all rewards from all validators".to_string(),
-        msg_fields: vec![],
-        query: Query {
-            instructions: vec![
-                QueryInstruction {
-                    plane: "COSMOS".to_string(),
-                    action: "COSMOS_QUERY".to_string(),
-                    address: Binary::new(vec![]),
-                    input: vec![Binary::from(
-                        "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                    )],
-                }],
-            },
-        };
-        
-        
-        let claim_rewards_and_redelegate_prompt = Prompt {
-            template: "claim all rewards and delegate to same validators".to_string(),
-            msg_fields: vec![],
-            query: Query {
-                instructions: vec![
-                    QueryInstruction {
-                        plane: "COSMOS".to_string(),
-                        action: "COSMOS_QUERY".to_string(),
-                        address: Binary::new(vec![]),
-                        input: vec![Binary::from(
-                            "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                        )],
-                    }],
-                },
-            };
-            
-            let redelegate_prompt = Prompt {
-                template: "move ${amount:number} lux from validator ${src_validator_address:string} to ${new_validator_address:string}".to_string(),
-                msg_fields: vec![
-                    "amount".to_string(),
-                    "src_validator_address".to_string(),
-                    "new_validator_address".to_string(),
-                ],
-                query: Query {
-                    instructions: vec![
-                        QueryInstruction {
-                            plane: "COSMOS".to_string(),
-                            action: "COSMOS_QUERY".to_string(),
-                            address: Binary::new(vec![]),
-                            input: vec![Binary::from(
-                                "/cosmos/distribution/v1beta1/delegators/${wallet}/rewards".as_bytes(),
-                            )],
-                        },
-                        QueryInstruction {
-                            plane: "COSMOS".to_string(),
-                            action: "COSMOS_QUERY".to_string(),
-                            address: Binary::new(vec![]),
-                            input: vec![Binary::from(
-                                "/cosmos/staking/v1beta1/validators".as_bytes(),
-                            )],
-                        },
-                    ],
-                },
-            };
+    // Constructing the group "Staking Solver"
+    let group = Group {
+        name: "Staking Solver".to_string(),
+        prompts: Prompts {
+            delegate: delegate_prompt,
+            undelegate: undelegate_prompt,
+            claim_all_rewards: claim_all_rewards_prompt,
+            claim_rewards_and_redelegate: claim_rewards_and_redelegate_prompt,
+        },
+    };
 
-            // Constructing the group "Staking Solver"
-            let group = Group {
-                name: "Staking Solver".to_string(),
-                prompts: Prompts {
-                    delegate: delegate_prompt,
-                    undelegate: undelegate_prompt,
-                    claim_all_rewards: claim_all_rewards_prompt,
-                    claim_rewards_and_redelegate: claim_rewards_and_redelegate_prompt,
-                },
-            };
-            
-            // Creating the schema
+    // Creating the schema
     let schema = Schema {
         groups: vec![group],
     };

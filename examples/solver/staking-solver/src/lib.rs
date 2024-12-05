@@ -1,7 +1,7 @@
 pub mod astromesh;
 use astromesh::{
-    MsgBeginRedelegate, MsgDelegate, MsgUndelegate, MsgWithdrawDelegatorReward, NexusAction,
-    ValidatorResponse,
+    DelegationResponse, MsgBeginRedelegate, MsgDelegate, MsgUndelegate, MsgWithdrawDelegatorReward,
+    NexusAction, ValidatorResponse,
 };
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
@@ -211,7 +211,6 @@ pub fn delegate(
     .unwrap())
 }
 
-
 pub fn undelegate(
     deps: Deps,
     env: Env,
@@ -221,42 +220,36 @@ pub fn undelegate(
 ) -> StdResult<Binary> {
     let delegator_address = env.contract.address.to_string();
     let mut instructions = vec![];
-    
-    let rewards = get_rewards(deps, &fis_input.clone())?;
-    let validator_address = get_validator_by_name(fis_input, validator_name.clone())?;
 
-    
-    for idx in 0..rewards.len() {
-        if rewards[idx].validator_address != validator_address {
+    let validator_address = get_validator_by_name(fis_input, validator_name.clone())?;
+    let fis = &fis_input[0];
+    let delegates_response = from_json::<DelegationResponse>(fis.data.get(0).unwrap()).unwrap();
+
+    if delegates_response.delegation_responses.len() == 0 {
+        return Err(StdError::generic_err(format!("No delegate found").as_str()));
+    }
+
+    for idx in 0..delegates_response.delegation_responses.len() {
+        if delegates_response.delegation_responses[idx].delegation.validator_address != validator_address {
             continue;
         }
+
+        let delegate = &delegates_response.delegation_responses[idx];
+        let balance = delegate.balance.amount;
         
-        let reward = &rewards[idx].reward[0];
-        let reward_amount_uint256 = reward.amount.to_uint_floor();
-        let reward_amount = reward_amount_uint256
-        .to_string()
-        .parse::<Uint128>()
-        .unwrap();
-    
-        if reward_amount < amount {
+        if balance < amount {
             return Err(StdError::generic_err(
-                format!("Not enough rewards to undelegate").as_str(),
+                format!("Insufficient balance to undelegate").as_str(),
             ));
         }
-        
+
         instructions.push(ix_undelegate(
             deps,
             delegator_address.clone(),
             validator_address.clone(),
             amount,
         ));
-        
-        instructions.push(ix_withdraw_delegator_reward(
-            deps,
-            validator_address.clone(),
-            delegator_address.clone(),
-        ));
-        
+
         return Ok(to_json_binary(&StrategyOutput { instructions }).unwrap());
     }
 
