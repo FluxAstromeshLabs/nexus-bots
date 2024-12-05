@@ -10,6 +10,7 @@ use svm::raydium::Raydium;
 mod astromesh;
 mod svm;
 mod wasm;
+mod evm;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
