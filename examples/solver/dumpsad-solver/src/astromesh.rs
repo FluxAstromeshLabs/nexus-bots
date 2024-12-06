@@ -7,6 +7,7 @@ pub const PLANE_COSMOS: &str = "COSMOS";
 
 pub const QUERY_ACTION_COSMOS_QUERY: &str = "COSMOS_QUERY";
 pub const QUERY_ACTION_COSMOS_BANK_BALANCE: &str = "COSMOS_BANK_BALANCE";
+pub const QUERY_ACTION_COSMOS_KVSTORE: &str = "COSMOS_KVSTORE";
 
 #[cw_serde]
 pub struct MsgAstroTransfer {

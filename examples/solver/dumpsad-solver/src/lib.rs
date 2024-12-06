@@ -1,5 +1,5 @@
 use astromesh::{
-    keccak256, sha256, AccountResponse, CommissionConfig, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, MsgCreatePool, MsgUpdatePool, NexusAction, PLANE_COSMOS, QUERY_ACTION_COSMOS_BANK_BALANCE, QUERY_ACTION_COSMOS_QUERY
+    keccak256, sha256, AccountResponse, CommissionConfig, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, MsgCreatePool, MsgUpdatePool, NexusAction, PLANE_COSMOS, QUERY_ACTION_COSMOS_BANK_BALANCE, QUERY_ACTION_COSMOS_KVSTORE, QUERY_ACTION_COSMOS_QUERY
 };
 use bech32::{Bech32, Bech32m, Hrp};
 use cosmwasm_schema::cw_serde;
@@ -150,6 +150,15 @@ fn handle_create_token(
                 vec![
                     format!("{},{}", pool_address, pool_address).as_bytes().to_vec(),
                     format!("sol,{}", denom_base).as_bytes().to_vec(),
+                ],
+            ),
+            FISQueryInstruction::new(
+                PLANE_COSMOS.to_string(),
+                QUERY_ACTION_COSMOS_KVSTORE.to_string(), 
+                vec![], 
+                vec![
+                    "wasmd".as_bytes().to_vec(),
+                    [&[4u8], "lastContractId".as_bytes()].concat().to_vec(),
                 ],
             ),
         ])), 

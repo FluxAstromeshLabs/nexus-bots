@@ -13,6 +13,7 @@ impl BondingCurve {
     const DEFAULT_A: Uint128 = Uint128::new(1073000191);
     const DEFAULT_B: Uint128 = Uint128::new(32190005730);
     const SOL_BPS: Uint128 = Uint128::new(1_000_000_000);
+
     pub fn default(x: Uint128, y: Uint128) -> Self {
         BondingCurve {
             a: Self::DEFAULT_A,
