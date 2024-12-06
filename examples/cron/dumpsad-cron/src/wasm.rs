@@ -3,22 +3,27 @@ use cosmwasm_std::Coin;
 use serde::Serialize;
 
 pub mod astroport {
-    use std::str::FromStr;
+    use std::{default, io::Read, str::FromStr};
 
+    use bech32::{Bech32, Hrp};
     use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::{to_json_vec, Addr, Binary, Decimal, Uint128};
+    use cosmwasm_std::{to_json_vec, Addr, Binary, Coin, Decimal, Uint128};
 
     use crate::{
         astromesh::{
-            self, FISInstruction, PoolManager, ACTION_VM_INVOKE, PLANE_COSMOS, PLANE_WASM,
+            self, module_address, sha256, FISInstruction, PoolManager, ACTION_VM_INVOKE,
+            PLANE_COSMOS, PLANE_WASM,
         },
         wasm::MsgExecuteContract,
     };
 
-    pub struct Astroport {}
+    pub struct Astroport {
+        pub contract_sequence: Binary,
+    }
+
     pub const FACTORY_CONTRACT: &str =
         "lux14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9sm3tpfk";
-    pub const TOKEN_CODE_ID: u32 = 4;
+    pub const PAIR_CODE_ID: u64 = 2;
 
     #[cw_serde]
     #[derive(Hash)]
@@ -97,7 +102,8 @@ pub mod astroport {
                         init_params: None,
                     },
                     vec![],
-                )).unwrap(),
+                ))
+                .unwrap(),
             }]
         }
 
@@ -109,30 +115,57 @@ pub mod astroport {
             denom_1: String,
             amount_1: Uint128,
         ) -> Vec<FISInstruction> {
+            let sequence_number =
+                u64::from_be_bytes(self.contract_sequence.as_slice().try_into().unwrap());
+            let contract_id = &[
+                "wasm".as_bytes(),
+                &[0],
+                PAIR_CODE_ID.to_be_bytes().as_slice(),
+                sequence_number.to_be_bytes().as_slice(),
+            ]
+            .concat();
+            let pair_address_bz = module_address("module", &contract_id);
+            let pair_address_str =
+                bech32::encode::<Bech32>(Hrp::parse("lux").unwrap(), &pair_address_bz).unwrap();
+
             vec![FISInstruction {
                 plane: PLANE_WASM.to_string(),
                 action: ACTION_VM_INVOKE.to_string(),
                 address: "".to_string(),
                 msg: to_json_vec(&MsgExecuteContract::new(
                     sender,
-                    "".to_string(), // contract address?
-                    &AstroportMsg::ProvideLiquidity { 
+                    pair_address_str,
+                    &AstroportMsg::ProvideLiquidity {
                         assets: vec![
                             Asset {
-                                info: AssetInfo::NativeToken { denom: denom_0.clone() },
+                                info: AssetInfo::NativeToken {
+                                    denom: denom_0.clone(),
+                                },
                                 amount: amount_0,
                             },
                             Asset {
-                                info: AssetInfo::NativeToken { denom: denom_1.clone() },
+                                info: AssetInfo::NativeToken {
+                                    denom: denom_1.clone(),
+                                },
                                 amount: amount_1,
                             },
-                        ], 
-                        slippage_tolerance: Some(Decimal::from_str("0.5").unwrap()), 
-                        auto_stake: Some(false), 
+                        ],
+                        slippage_tolerance: Some(Decimal::from_str("0.5").unwrap()),
+                        auto_stake: Some(false),
                         receiver: None, // don't receive LP => no liquidity withdrawal
                     },
-                    vec![],
-                )).unwrap(),
+                    vec![
+                        Coin {
+                            denom: denom_0.clone(),
+                            amount: amount_0
+                        },
+                        Coin {
+                            denom: denom_1.clone(),
+                            amount: amount_1
+                        },
+                    ],
+                ))
+                .unwrap(),
             }]
         }
     }

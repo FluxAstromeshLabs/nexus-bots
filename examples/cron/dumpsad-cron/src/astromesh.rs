@@ -1,6 +1,8 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, Coin, DenomMetadata, Int128, Uint128, Uint64};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+// use tiny_keccak::{Hasher, Keccak};
 
 pub const PLANE_COSMOS: &str = "COSMOS";
 pub const PLANE_EVM: &str = "EVM";
@@ -93,13 +95,10 @@ pub struct QueryDenomLinkResponse {
 }
 
 pub trait PoolManager {
-    fn create_pool(
-        &self,
-        sender: String,
-        denom_0: String,
-        denom_1: String,
-    ) -> Vec<FISInstruction>;
-    
+    // instructions to create pool
+    fn create_pool(&self, sender: String, denom_0: String, denom_1: String) -> Vec<FISInstruction>;
+
+    // provide liquidity to pool, don't receive LP
     fn provide_liquidity_no_lp(
         &self,
         sender: String,
@@ -108,4 +107,35 @@ pub trait PoolManager {
         denom_1: String,
         denom_1_amount: Uint128,
     ) -> Vec<FISInstruction>;
+}
+
+// pub fn keccak256(input: &[u8]) -> [u8; 32] {
+//     let mut hash = Keccak::v256();
+//     hash.update(input);
+//     let mut output = [0u8; 32];
+//     hash.finalize(output.as_mut_slice());
+//     output
+// }
+
+pub fn sha256(input: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(input);
+    let result = hasher.finalize();
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&result);
+    hash
+}
+
+pub fn module_address(typ: &str, key: &[u8]) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    // Hash the type
+    hasher.update(typ.as_bytes());
+    let th = hasher.finalize(); // Finalize and reset for the first hash
+    let mut hasher2 = Sha256::new();
+
+    // Hash the intermediate hash and the key
+    hasher2.update(th);
+    hasher2.update(key);
+
+    hasher2.finalize().to_vec() // Finalize and return the final hash as Vec<u8>
 }

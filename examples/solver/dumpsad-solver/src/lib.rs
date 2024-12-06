@@ -157,7 +157,7 @@ fn handle_create_token(
                 QUERY_ACTION_COSMOS_KVSTORE.to_string(), 
                 vec![], 
                 vec![
-                    "wasmd".as_bytes().to_vec(),
+                    "wasm".as_bytes().to_vec(),
                     [&[4u8], "lastContractId".as_bytes()].concat().to_vec(),
                 ],
             ),
