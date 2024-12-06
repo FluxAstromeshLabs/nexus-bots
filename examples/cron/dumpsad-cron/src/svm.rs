@@ -1,6 +1,5 @@
 
 use std::collections::BTreeMap;
-use borsh::{BorshDeserialize, BorshSerialize};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, StdError, Uint64};
 use sha2::{Digest, Sha256};
@@ -165,7 +164,7 @@ impl TransactionBuilder {
 }
 
 // === crypto utils ===
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Pubkey(pub [u8; 32]);
 
 pub enum PubkeyError {
@@ -281,6 +280,11 @@ pub mod raydium {
 
     use super::{InstructionAccountMeta, InstructionMeta};
 
+    pub const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+    pub const CPMM_PROGRAM_ID: &str = "6W19gt519Ruyw3s4BiKtQXvxETzPbptjgfgB5gMgrfAf";
+    pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+    pub const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
+
     pub struct InitializeInstruction {
         pub init_amount0: u64,
         pub init_amount1: u64,
@@ -307,7 +311,7 @@ pub mod raydium {
             let data = self.encode_data();
     
             InstructionMeta {
-                program_id: "PROGRAM_ID_GOES_HERE".to_string(),
+                program_id: CPMM_PROGRAM_ID.to_string(),
                 account_meta: self.account_metas.clone(),
                 data,
             }
