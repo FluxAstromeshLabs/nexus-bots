@@ -1,14 +1,18 @@
-
-use std::collections::BTreeMap;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, StdError, Uint64};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 pub const SPL_TOKEN2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+pub const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 pub const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
 pub const SYS_VAR_RENT_ID: &str = "SysvarRent111111111111111111111111111111111";
 pub const MINT: &str = "C3xXmrQWWnTmYABa8YTKrYU5jkonkTwz1qQCJbVX3mQh";
 pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+pub const AMM_CONFIG_ACCOUNT: &str = "EHR3a7vLxBREzXic1rp7tyPPen6wy8VzdnYfKKRDXJG9";
+pub const AUTHORITY_ACCOUNT: &str = "3NTS4CmziURYZJ1JywCaCF4urzVbhL6kxNLbpuLzaaR7";
+pub const POOL_FEE_RECEIVER_ACCOUNT: &str = "TODO: FILL";
+
 #[cw_serde]
 pub struct Link {
     pub cosmos_addr: String,
@@ -274,11 +278,15 @@ pub fn bytes_are_curve_point<T: AsRef<[u8]>>(_bytes: T) -> bool {
 }
 
 pub mod raydium {
-    use cosmwasm_std::{Binary, Uint128};
+    use cosmwasm_std::{to_json_vec, Binary, HexBinary, Uint128};
 
-    use crate::astromesh::{self, FISInstruction, PoolManager};
+    use crate::astromesh::{self, FISInstruction, PoolManager, ACTION_VM_INVOKE, PLANE_SVM};
 
-    use super::{InstructionAccountMeta, InstructionMeta};
+    use super::{
+        InstructionAccountMeta, InstructionMeta, Pubkey, TransactionBuilder, AMM_CONFIG_ACCOUNT,
+        AUTHORITY_ACCOUNT, POOL_FEE_RECEIVER_ACCOUNT, SPL_TOKEN2022_PROGRAM_ID,
+        SPL_TOKEN_PROGRAM_ID, SYS_VAR_RENT_ID,
+    };
 
     pub const SPL_TOKEN_2022: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     pub const CPMM_PROGRAM_ID: &str = "6W19gt519Ruyw3s4BiKtQXvxETzPbptjgfgB5gMgrfAf";
@@ -291,7 +299,7 @@ pub mod raydium {
         pub open_time: u64,
         pub account_metas: Vec<InstructionAccountMeta>,
     }
-    
+
     impl InitializeInstruction {
         pub fn new(
             init_amount0: u64,
@@ -306,60 +314,299 @@ pub mod raydium {
                 account_metas,
             }
         }
-    
+
         pub fn build_instruction(&self) -> InstructionMeta {
             let data = self.encode_data();
-    
+
             InstructionMeta {
                 program_id: CPMM_PROGRAM_ID.to_string(),
                 account_meta: self.account_metas.clone(),
                 data,
             }
         }
-    
+
         fn encode_data(&self) -> Binary {
             let mut data: Vec<u8> = Vec::from(vec![175, 175, 109, 31, 13, 152, 155, 237]);
-    
+
             data.extend(&self.init_amount0.to_le_bytes());
             data.extend(&self.init_amount1.to_le_bytes());
             data.extend(&self.open_time.to_le_bytes());
-    
+
             Binary::from(data)
         }
     }
-    
+
     pub fn create_initialize_instruction(
+        // Parameters:
         init_amount0: u64,
         init_amount1: u64,
         open_time: u64,
-        account_metas: Vec<InstructionAccountMeta>,
+        // Accounts:
+        creator: String,
+        amm_config: String,
+        authority: String,
+        pool_state: String,
+        token0_mint: String,
+        token1_mint: String,
+        lp_mint: String,
+        creator_token0: String,
+        creator_token1: String,
+        creator_lp_token: String,
+        token0_vault: String,
+        token1_vault: String,
+        create_pool_fee: String,
+        observation_state: String,
+        token_program: String,
+        token0_program: String,
+        token1_program: String,
+        associated_token_program: String,
+        system_program: String,
+        rent: String,
     ) -> InstructionMeta {
-        let initialize = InitializeInstruction::new(init_amount0, init_amount1, open_time, account_metas);
-    
-        initialize.build_instruction()
+        let account_metas = vec![
+            InstructionAccountMeta {
+                pubkey: creator,
+                is_signer: true,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: amm_config,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: authority,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: pool_state,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: token0_mint,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: token1_mint,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: lp_mint,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: creator_token0,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: creator_token1,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: creator_lp_token,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: token0_vault,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: token1_vault,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: create_pool_fee,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: observation_state,
+                is_signer: false,
+                is_writable: true,
+            },
+            InstructionAccountMeta {
+                pubkey: token_program,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: token0_program,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: token1_program,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: associated_token_program,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: system_program,
+                is_signer: false,
+                is_writable: false,
+            },
+            InstructionAccountMeta {
+                pubkey: rent,
+                is_signer: false,
+                is_writable: false,
+            },
+        ];
+
+        let instruction = InitializeInstruction {
+            init_amount0,
+            init_amount1,
+            open_time,
+            account_metas,
+        };
+
+        instruction.build_instruction()
     }
-    
-    pub struct Raydium {}
+
+    pub struct Raydium {
+        pub svm_creator: String,
+        pub open_time: u64,
+    }
+
+    fn must_find_ata(
+        wallet: &Pubkey,
+        token_program: &Pubkey,
+        mint: &Pubkey,
+        ata_program: &Pubkey,
+    ) -> Pubkey {
+        let (ata, _) =
+            Pubkey::find_program_address(&[&wallet.0, &token_program.0, &mint.0], ata_program)
+                .unwrap();
+        ata
+    }
 
     impl PoolManager for Raydium {
-        fn create_pool(
+        fn create_pool_with_initial_liquidity(
             &self,
             sender: String,
             denom_0: String,
+            amount_0: Uint128,
             denom_1: String,
+            amount_1: Uint128,
         ) -> Vec<FISInstruction> {
-            vec![]
-        }
+            let raydium_swap_program = Pubkey::from_string(&CPMM_PROGRAM_ID.to_string()).unwrap();
+            let amm_config = Pubkey::from_string(&AMM_CONFIG_ACCOUNT.to_string()).unwrap();
 
-        fn provide_liquidity_no_lp(
-            &self,
-            pool_id: String,
-            denom_0: String,
-            denom_0_amount: Uint128,
-            denom_1: String,
-            denom_1_amount: Uint128,
-        ) -> Vec<FISInstruction> {
-            vec![]
+            let sender_svm_bz = Pubkey::from_string(&self.svm_creator).unwrap();
+            let denom_0_bz = HexBinary::from_hex(&denom_0).unwrap();
+            let denom_1_bz = HexBinary::from_hex(&denom_1).unwrap();
+            let spl_token_2022_program = Pubkey::from_string(&SPL_TOKEN_2022.to_string()).unwrap();
+            let ata_program =
+                Pubkey::from_string(&ASSOCIATED_TOKEN_PROGRAM_ID.to_string()).unwrap();
+
+            // Find the pool state account
+            let (pool_state_account, _) = Pubkey::find_program_address(
+                &[b"pool", &amm_config.0, &denom_0_bz, &denom_1_bz],
+                &raydium_swap_program,
+            )
+            .unwrap();
+
+            let (lp_mint, _) = Pubkey::find_program_address(
+                &[b"pool_lp_mint", &pool_state_account.0],
+                &raydium_swap_program,
+            )
+            .unwrap();
+
+            let creator_token0_ata = must_find_ata(
+                &sender_svm_bz,
+                &spl_token_2022_program, // Replace with Token2022 program ID
+                &Pubkey::from_slice(denom_0_bz.as_slice()).unwrap(),
+                &ata_program, // Replace with ATA program ID
+            );
+
+            let creator_token1_ata = must_find_ata(
+                &sender_svm_bz,
+                &spl_token_2022_program, // Replace with Token2022 program ID
+                &Pubkey::from_slice(denom_1_bz.as_slice()).unwrap(),
+                &ata_program, // Replace with ATA program ID
+            );
+
+            let creator_lp_ata = must_find_ata(
+                &sender_svm_bz,
+                &spl_token_2022_program, // Replace with Token2022 program ID
+                &lp_mint,
+                &ata_program, // Replace with ATA program ID
+            );
+
+            let (token0_vault, _) = Pubkey::find_program_address(
+                &[b"pool_vault", &pool_state_account.0, &denom_0_bz],
+                &raydium_swap_program,
+            )
+            .unwrap();
+
+            let (token1_vault, _) = Pubkey::find_program_address(
+                &[b"pool_vault", &pool_state_account.0, &denom_1_bz],
+                &raydium_swap_program,
+            )
+            .unwrap();
+
+            // find the oracle observer account
+            let (oracle_observer_state, _) = Pubkey::find_program_address(
+                &[b"observation", &pool_state_account.0],
+                &raydium_swap_program,
+            )
+            .unwrap();
+
+            let initialize_pool = create_initialize_instruction(
+                amount_0.u128() as u64,
+                amount_1.u128() as u64,
+                self.open_time,
+                // accounts
+                self.svm_creator.clone(),
+                AMM_CONFIG_ACCOUNT.to_string(),
+                AUTHORITY_ACCOUNT.to_string(),
+                pool_state_account.to_string(),
+                Pubkey::from_slice(&denom_0_bz.as_slice())
+                    .unwrap()
+                    .to_string(),
+                Pubkey::from_slice(&denom_1_bz.as_slice())
+                    .unwrap()
+                    .to_string(),
+                lp_mint.to_string(),
+                creator_token0_ata.to_string(),
+                creator_token1_ata.to_string(),
+                creator_lp_ata.to_string(),
+                token0_vault.to_string(),
+                token1_vault.to_string(),
+                POOL_FEE_RECEIVER_ACCOUNT.to_string(),
+                oracle_observer_state.to_string(),
+                SPL_TOKEN_PROGRAM_ID.to_string(),
+                SPL_TOKEN2022_PROGRAM_ID.to_string(),
+                SPL_TOKEN2022_PROGRAM_ID.to_string(),
+                ASSOCIATED_TOKEN_PROGRAM_ID.to_string(),
+                SYSTEM_PROGRAM_ID.to_string(),
+                SYS_VAR_RENT_ID.to_string(),
+            );
+
+            let mut tx = TransactionBuilder::new();
+            tx.add_instructions(vec![initialize_pool]);
+
+            let msg_transaction = tx.build(vec![sender], 10_000_000);
+
+            vec![FISInstruction {
+                plane: PLANE_SVM.to_string(),
+                action: ACTION_VM_INVOKE.to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&msg_transaction).unwrap(),
+            }]
         }
     }
 }

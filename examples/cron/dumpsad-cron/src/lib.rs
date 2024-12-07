@@ -1,11 +1,12 @@
-use astromesh::{FISInstruction, PoolManager, QueryDenomLinkResponse};
+use astromesh::{
+    FISInstruction, MsgAstroTransfer, PoolManager, QueryDenomLinkResponse, ACTION_VM_INVOKE, PLANE_COSMOS, PLANE_EVM, PLANE_SVM, PLANE_WASM
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Uint128,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128
 };
 use std::vec::Vec;
-use svm::raydium::Raydium;
+use svm::{raydium::Raydium, AccountLink};
 use wasm::astroport::Astroport;
 mod astromesh;
 mod evm;
@@ -102,9 +103,61 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mut instructions = vec![];
     if graduated {
         let contract_sequence = msg.fis_input.get(1).unwrap().data.get(0).unwrap();
-        let (mut denom_0, mut denom_1) = (quote_coin.denom, meme_coin.denom);
-        let (mut amount_0, mut amount_1) = (quote_coin.amount, meme_coin.amount);
 
+        // account link and denom link
+        let account_link =
+            from_json::<AccountLink>(msg.fis_input.get(2).unwrap().data.get(0).unwrap())?;
+        let linked_svm = account_link.link.svm_addr;
+
+        let (mut denom_0, mut denom_1) = (quote_coin.denom.clone(), meme_coin.denom.clone());
+        match vm.as_str() {
+            PLANE_EVM => {
+                // do something with the denom
+            }
+            PLANE_SVM => {
+                let denom_link =
+                    from_json::<AccountLink>(msg.fis_input.get(3).unwrap().data.get(0).unwrap())?;
+                denom_0 = "CPozhCGVaGAcPVkxERsUYat4b7NKT9QeAR9KjNH4JpDG".to_string();
+                denom_1 = denom_link.link.svm_addr.to_string();
+
+                // move all funds to SVM
+                instructions.extend(vec![
+                    FISInstruction {
+                        plane: PLANE_COSMOS.to_string(),
+                        action: ACTION_VM_INVOKE.to_string(),
+                        address: "".to_string(),
+                        msg: to_json_vec(&MsgAstroTransfer::new(
+                            pool_address.to_string(),
+                            pool_address.to_string(),
+                            PLANE_COSMOS.to_string(),
+                            PLANE_SVM.to_string(),
+                            Coin {
+                                denom: quote_coin.denom,
+                                amount: quote_coin.amount,
+                            },
+                        ))?,
+                    },
+                    FISInstruction {
+                        plane: PLANE_COSMOS.to_string(),
+                        action: ACTION_VM_INVOKE.to_string(),
+                        address: "".to_string(),
+                        msg: to_json_vec(&MsgAstroTransfer::new(
+                            pool_address.to_string(),
+                            pool_address.to_string(),
+                            PLANE_COSMOS.to_string(),
+                            PLANE_SVM.to_string(),
+                            Coin {
+                                denom: meme_coin.denom,
+                                amount: meme_coin.amount,
+                            },
+                        ))?,
+                    }
+                ]);
+            }
+            _ => {}
+        }
+
+        let (mut amount_0, mut amount_1) = (quote_coin.amount, meme_coin.amount);
         if denom_0 > denom_1 {
             (denom_0, denom_1) = (denom_1, denom_0);
             (amount_0, amount_1) = (amount_1, amount_0);
@@ -117,35 +170,32 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             format!(
                 "graduate: vm: {}, coin0:{}{}, coin1:{}{}",
                 vm,
-                denom_0.to_string(),
                 amount_0.u128(),
+                denom_0.to_string(),
+                amount_1.u128(),
                 denom_1.to_string(),
-                amount_1.u128()
             )
             .as_str(),
         );
         let pool: Box<dyn PoolManager> = match vm.as_str() {
-            "SVM" => Box::new(Raydium {}),
+            "SVM" => Box::new(Raydium {
+                svm_creator: linked_svm,
+                open_time: env.block.time.seconds(),
+            }),
             "WASM" => Box::new(Astroport {
                 contract_sequence: contract_sequence.clone(),
             }),
             _ => unreachable!(),
         };
 
-        let create_pool_ixs =
-            pool.create_pool(pool_address.clone(), denom_0.clone(), denom_1.clone());
-        instructions.extend(create_pool_ixs);
-
-        // 3. denom0, denom1 for liquidity
-        let proivde_liquidity_ixs = pool.provide_liquidity_no_lp(
+        let create_pool_ixs = pool.create_pool_with_initial_liquidity(
             pool_address.clone(),
             denom_0.clone(),
             amount_0,
             denom_1.clone(),
             amount_1,
         );
-        instructions.extend(proivde_liquidity_ixs);
-        // TODO: stop cron after gradauate
+        instructions.extend(create_pool_ixs);
     }
 
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
