@@ -76,38 +76,7 @@ pub mod astroport {
     }
 
     impl PoolManager for Astroport {
-        fn create_pool(
-            &self,
-            sender: String,
-            denom_0: String,
-            denom_1: String,
-        ) -> Vec<FISInstruction> {
-            vec![FISInstruction {
-                plane: PLANE_WASM.to_string(),
-                action: ACTION_VM_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&MsgExecuteContract::new(
-                    sender,
-                    FACTORY_CONTRACT.to_string(),
-                    &AstroportMsg::CreatePair {
-                        pair_type: PairType::Xyk {},
-                        asset_infos: vec![
-                            AssetInfo::NativeToken {
-                                denom: denom_0.clone(),
-                            },
-                            AssetInfo::NativeToken {
-                                denom: denom_1.clone(),
-                            },
-                        ],
-                        init_params: None,
-                    },
-                    vec![],
-                ))
-                .unwrap(),
-            }]
-        }
-
-        fn provide_liquidity_no_lp(
+        fn create_pool_with_initial_liquidity(
             &self,
             sender: String,
             denom_0: String,
@@ -128,45 +97,70 @@ pub mod astroport {
             let pair_address_str =
                 bech32::encode::<Bech32>(Hrp::parse("lux").unwrap(), &pair_address_bz).unwrap();
 
-            vec![FISInstruction {
-                plane: PLANE_WASM.to_string(),
-                action: ACTION_VM_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&MsgExecuteContract::new(
-                    sender,
-                    pair_address_str,
-                    &AstroportMsg::ProvideLiquidity {
-                        assets: vec![
-                            Asset {
-                                info: AssetInfo::NativeToken {
+            vec![
+                FISInstruction {
+                    plane: PLANE_WASM.to_string(),
+                    action: ACTION_VM_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgExecuteContract::new(
+                        sender.clone(),
+                        FACTORY_CONTRACT.to_string(),
+                        &AstroportMsg::CreatePair {
+                            pair_type: PairType::Xyk {},
+                            asset_infos: vec![
+                                AssetInfo::NativeToken {
                                     denom: denom_0.clone(),
                                 },
-                                amount: amount_0,
-                            },
-                            Asset {
-                                info: AssetInfo::NativeToken {
+                                AssetInfo::NativeToken {
                                     denom: denom_1.clone(),
                                 },
+                            ],
+                            init_params: None,
+                        },
+                        vec![],
+                    ))
+                    .unwrap(),
+                },
+                FISInstruction {
+                    plane: PLANE_WASM.to_string(),
+                    action: ACTION_VM_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgExecuteContract::new(
+                        sender,
+                        pair_address_str,
+                        &AstroportMsg::ProvideLiquidity {
+                            assets: vec![
+                                Asset {
+                                    info: AssetInfo::NativeToken {
+                                        denom: denom_0.clone(),
+                                    },
+                                    amount: amount_0,
+                                },
+                                Asset {
+                                    info: AssetInfo::NativeToken {
+                                        denom: denom_1.clone(),
+                                    },
+                                    amount: amount_1,
+                                },
+                            ],
+                            slippage_tolerance: Some(Decimal::from_str("0.5").unwrap()),
+                            auto_stake: Some(false),
+                            receiver: None, // don't receive LP => no liquidity withdrawal
+                        },
+                        vec![
+                            Coin {
+                                denom: denom_0.clone(),
+                                amount: amount_0,
+                            },
+                            Coin {
+                                denom: denom_1.clone(),
                                 amount: amount_1,
                             },
                         ],
-                        slippage_tolerance: Some(Decimal::from_str("0.5").unwrap()),
-                        auto_stake: Some(false),
-                        receiver: None, // don't receive LP => no liquidity withdrawal
-                    },
-                    vec![
-                        Coin {
-                            denom: denom_0.clone(),
-                            amount: amount_0
-                        },
-                        Coin {
-                            denom: denom_1.clone(),
-                            amount: amount_1
-                        },
-                    ],
-                ))
-                .unwrap(),
-            }]
+                    ))
+                    .unwrap(),
+                },
+            ]
         }
     }
 }

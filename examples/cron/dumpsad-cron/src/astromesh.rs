@@ -10,6 +10,7 @@ pub const PLANE_SVM: &str = "SVM";
 pub const PLANE_WASM: &str = "WASM";
 
 pub const ACTION_VM_INVOKE: &str = "VM_INVOKE";
+pub const ACTION_COSMOS_INVOKE: &str = "COSMOS_INVOKE";
 
 #[cw_serde]
 pub struct MsgAstroTransfer {
@@ -95,17 +96,13 @@ pub struct QueryDenomLinkResponse {
 }
 
 pub trait PoolManager {
-    // instructions to create pool
-    fn create_pool(&self, sender: String, denom_0: String, denom_1: String) -> Vec<FISInstruction>;
-
-    // provide liquidity to pool, don't receive LP
-    fn provide_liquidity_no_lp(
+    fn create_pool_with_initial_liquidity(
         &self,
         sender: String,
         denom_0: String,
-        denom_0_amount: Uint128,
+        amount_0: Uint128,
         denom_1: String,
-        denom_1_amount: Uint128,
+        amount_1: Uint128,
     ) -> Vec<FISInstruction>;
 }
 
