@@ -19,6 +19,7 @@ mod strategy;
 
 const PERCENTAGE_BPS: u128 = 10_000;
 const EMBEDDED_CRON_BINARY: &[u8] = include_bytes!("../../../cron/dumpsad-cron/target/wasm32-unknown-unknown/release/dumpsad_cron.wasm");
+const INITIAL_AMOUNT: &Uint128 = &Uint128::new(1_000_000_000_000_000);
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -92,7 +93,6 @@ fn handle_create_token(
     let pool_address = bech32::encode::<Bech32>(Hrp::parse("lux").unwrap(), pool_id)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
-    let initial_amount = Uint128::new(1_000_000_000);
     let denom_base = format!("astromesh/{}/{}", creator.clone(), name);
     let denom_display = name.to_uppercase();
     let denom_symbol = name.to_uppercase();
@@ -116,7 +116,7 @@ fn handle_create_token(
                 },
                 DenomUnit {
                     denom: denom_display.clone(),
-                    exponent: 6,
+                    exponent: 9,
                     aliases: vec![],
                 },
             ],
@@ -130,7 +130,7 @@ fn handle_create_token(
         "".to_string(), // only do initial mint, cannot mint more
         vec![InitialMint {
             address: pool_address.clone(),
-            amount: initial_amount,
+            amount: INITIAL_AMOUNT.clone(),
         }],
     );
 
@@ -242,7 +242,7 @@ fn handle_buy(
     // calculate the delta Y
     let mut curve = BondingCurve::default(
         quote_coin.amount,
-        Uint128::from(1_000_000_000u128) - meme_coin.amount,
+        INITIAL_AMOUNT - meme_coin.amount,
     );
     let pre_price = curve.price();
     let worst_price = pre_price
@@ -313,7 +313,7 @@ fn handle_sell(
     // Initialize bonding curve
     let mut curve = BondingCurve::default(
         quote_coin.amount,
-        Uint128::from(1_000_000_000u128) - meme_coin.amount,
+        INITIAL_AMOUNT - meme_coin.amount,
     );
     let pre_price = curve.price();
     let worst_price = pre_price
