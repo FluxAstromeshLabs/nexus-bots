@@ -123,7 +123,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 instructions.extend(vec![
                     FISInstruction {
                         plane: PLANE_COSMOS.to_string(),
-                        action: ACTION_VM_INVOKE.to_string(),
+                        action: ACTION_COSMOS_INVOKE.to_string(),
                         address: "".to_string(),
                         msg: to_json_vec(&MsgAstroTransfer::new(
                             pool_address.to_string(),
