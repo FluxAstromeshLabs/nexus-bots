@@ -1,5 +1,5 @@
 use astromesh::{
-    keccak256, sha256, AccountResponse, CommissionConfig, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, MsgCreatePool, MsgUpdatePool, NexusAction, PLANE_COSMOS, QUERY_ACTION_COSMOS_BANK_BALANCE, QUERY_ACTION_COSMOS_KVSTORE, QUERY_ACTION_COSMOS_QUERY
+    keccak256, sha256, AccountResponse, CommissionConfig, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, MsgCreatePool, MsgUpdatePool, NexusAction, PLANE_COSMOS, PLANE_SVM, QUERY_ACTION_COSMOS_ASTROMESH_BALANCE, QUERY_ACTION_COSMOS_BANK_BALANCE, QUERY_ACTION_COSMOS_KVSTORE, QUERY_ACTION_COSMOS_QUERY
 };
 use bech32::{Bech32, Bech32m, Hrp};
 use cosmwasm_schema::cw_serde;
@@ -88,7 +88,7 @@ fn handle_create_token(
     );
 
     let pool_id = &keccak256(&pool_id_seed)[12..];
-    // TODO: Check cosmwasm std Addr, it needs callback/FFI
+    // TODO: Check cosmwasm std Addr (it used callback/FFI to parse addr, save some gas/perf)
     let pool_address = bech32::encode::<Bech32>(Hrp::parse("lux").unwrap(), pool_id)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
@@ -161,6 +161,23 @@ fn handle_create_token(
                     [&[4u8], "lastContractId".as_bytes()].concat().to_vec(),
                 ],
             ),
+            FISQueryInstruction::new(
+                PLANE_COSMOS.to_string(),
+                QUERY_ACTION_COSMOS_QUERY.to_string(), 
+                vec![], 
+                vec![
+                    format!("/flux/svm/v1beta1/account_link/cosmos/{}", pool_address).as_bytes().to_vec(),
+                ],
+            ),
+            FISQueryInstruction::new(
+                PLANE_COSMOS.to_string(),
+                QUERY_ACTION_COSMOS_ASTROMESH_BALANCE.to_string(),
+                vec![], 
+                vec![
+                    pool_address.clone().as_bytes().to_vec(),
+                    denom_base.as_bytes().to_vec(),
+                ],
+            ),
         ])), 
         Some(PermissionConfig::new("anyone".to_string(), vec![])),
         Some(StrategyMetadata {
@@ -193,11 +210,11 @@ fn handle_create_token(
         vec![],
         false,
         vec![],
-        "".to_string(),
-        vec![bot_id, HexBinary::from(cron_id).to_string()]
+        HexBinary::from(cron_id).to_string(),
+        bot_id,
     );
 
-    Ok(vec![
+    let mut instructions = vec![
         FISInstruction {
             plane: "COSMOS".to_string(),
             action: "COSMOS_INVOKE".to_string(),
@@ -220,9 +237,26 @@ fn handle_create_token(
             plane: "COSMOS".to_string(),
             action: "COSMOS_INVOKE".to_string(),
             address: "".to_string(),
-            msg: to_json_vec(&update_pool_msg)?,
+            msg: to_json_vec(&update_pool_msg)?, // TODO: should disable admin permission for creator from this part, as owner can set another bot as driver
         },
-    ])
+    ];
+    
+    if target_vm == PLANE_SVM {
+        let init_transfer_msg = MsgAstroTransfer::new(
+            pool_address.clone(), 
+            pool_address, 
+            PLANE_COSMOS.to_string(), 
+            PLANE_SVM.to_string(), 
+            Coin::new(Uint128::one(), denom_base),
+        );
+        instructions.push(FISInstruction {
+            plane: "COSMOS".to_string(),
+            action: "COSMOS_INVOKE".to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&init_transfer_msg)?,
+        },);
+    }
+    Ok(instructions)
 }
 
 fn handle_buy(

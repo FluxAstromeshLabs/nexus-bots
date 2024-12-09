@@ -1,5 +1,5 @@
 use astromesh::{
-    FISInstruction, MsgAstroTransfer, PoolManager, QueryDenomLinkResponse, ACTION_VM_INVOKE, PLANE_COSMOS, PLANE_EVM, PLANE_SVM, PLANE_WASM
+    FISInstruction, MsgAstroTransfer, PoolManager, QueryDenomLinkResponse, ACTION_COSMOS_INVOKE, ACTION_VM_INVOKE, PLANE_COSMOS, PLANE_EVM, PLANE_SVM, PLANE_WASM
 };
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
@@ -97,7 +97,6 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     // get current liquidity source
     let quote_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(0).unwrap())?; // SOL
     let meme_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(1).unwrap())?;
-    // TODO: Get denom link here for EVM, SVM
     // TODO: pool graduate condition (phuc)
     let graduated = quote_coin.amount.gt(&Uint128::one());
     let mut instructions = vec![];
@@ -115,10 +114,10 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 // do something with the denom
             }
             PLANE_SVM => {
-                let denom_link =
-                    from_json::<AccountLink>(msg.fis_input.get(3).unwrap().data.get(0).unwrap())?;
+                let svm_coin =
+                    from_json::<Coin>(msg.fis_input.get(3).unwrap().data.get(2).unwrap())?;
                 denom_0 = "CPozhCGVaGAcPVkxERsUYat4b7NKT9QeAR9KjNH4JpDG".to_string();
-                denom_1 = denom_link.link.svm_addr.to_string();
+                denom_1 = svm_coin.denom;
 
                 // move all funds to SVM
                 instructions.extend(vec![
@@ -139,7 +138,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     },
                     FISInstruction {
                         plane: PLANE_COSMOS.to_string(),
-                        action: ACTION_VM_INVOKE.to_string(),
+                        action: ACTION_COSMOS_INVOKE.to_string(),
                         address: "".to_string(),
                         msg: to_json_vec(&MsgAstroTransfer::new(
                             pool_address.to_string(),
@@ -164,7 +163,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
 
         // 1. pay creator 0.5 SOL, get 1.5 SOL as fee
-        // TODO: Generate fee transfers here
+        // TODO(Minh): Generate fee transfers here
         // 2. create pool in target vm
         _deps.api.debug(
             format!(

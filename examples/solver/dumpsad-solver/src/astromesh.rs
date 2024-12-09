@@ -4,10 +4,12 @@ use sha2::{Digest, Sha256};
 use tiny_keccak::{Hasher, Keccak};
 
 pub const PLANE_COSMOS: &str = "COSMOS";
+pub const PLANE_SVM: &str = "SVM";
 
 pub const QUERY_ACTION_COSMOS_QUERY: &str = "COSMOS_QUERY";
 pub const QUERY_ACTION_COSMOS_BANK_BALANCE: &str = "COSMOS_BANK_BALANCE";
 pub const QUERY_ACTION_COSMOS_KVSTORE: &str = "COSMOS_KVSTORE";
+pub const QUERY_ACTION_COSMOS_ASTROMESH_BALANCE: &str = "COSMOS_ASTROMESH_BALANCE";
 
 #[cw_serde]
 pub struct MsgAstroTransfer {
@@ -158,7 +160,7 @@ pub struct MsgUpdatePool {
     pub charge_management_fee: bool,
     pub trading_fee: Vec<Coin>,
     pub cron_id: String,
-    pub drivers: Vec<String>,
+    pub solver_id: String,
 }
 
 impl MsgUpdatePool {
@@ -170,7 +172,7 @@ impl MsgUpdatePool {
         charge_management_fee: bool,
         trading_fee: Vec<Coin>,
         cron_id: String,
-        drivers: Vec<String>,
+        solver_id: String,
     ) -> Self {
         MsgUpdatePool {
             ty: "/flux.interpool.v1beta1.MsgUpdatePool".to_string(),
@@ -181,7 +183,7 @@ impl MsgUpdatePool {
             charge_management_fee,
             trading_fee,
             cron_id,
-            drivers,
+            solver_id,
         }
     }
 }

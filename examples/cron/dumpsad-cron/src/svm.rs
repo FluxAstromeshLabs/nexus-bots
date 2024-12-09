@@ -506,15 +506,15 @@ pub mod raydium {
             let amm_config = Pubkey::from_string(&AMM_CONFIG_ACCOUNT.to_string()).unwrap();
 
             let sender_svm_bz = Pubkey::from_string(&self.svm_creator).unwrap();
-            let denom_0_bz = HexBinary::from_hex(&denom_0).unwrap();
-            let denom_1_bz = HexBinary::from_hex(&denom_1).unwrap();
+            let denom_0_bz = Pubkey::from_string(&denom_0.to_string()).unwrap();
+            let denom_1_bz = Pubkey::from_string(&denom_1.to_string()).unwrap();
             let spl_token_2022_program = Pubkey::from_string(&SPL_TOKEN_2022.to_string()).unwrap();
             let ata_program =
                 Pubkey::from_string(&ASSOCIATED_TOKEN_PROGRAM_ID.to_string()).unwrap();
 
             // Find the pool state account
             let (pool_state_account, _) = Pubkey::find_program_address(
-                &[b"pool", &amm_config.0, &denom_0_bz, &denom_1_bz],
+                &[b"pool", &amm_config.0, &denom_0_bz.0, &denom_1_bz.0],
                 &raydium_swap_program,
             )
             .unwrap();
@@ -528,14 +528,14 @@ pub mod raydium {
             let creator_token0_ata = must_find_ata(
                 &sender_svm_bz,
                 &spl_token_2022_program, // Replace with Token2022 program ID
-                &Pubkey::from_slice(denom_0_bz.as_slice()).unwrap(),
+                &Pubkey::from_slice(&denom_0_bz.0).unwrap(),
                 &ata_program, // Replace with ATA program ID
             );
 
             let creator_token1_ata = must_find_ata(
                 &sender_svm_bz,
                 &spl_token_2022_program, // Replace with Token2022 program ID
-                &Pubkey::from_slice(denom_1_bz.as_slice()).unwrap(),
+                &Pubkey::from_slice(&denom_1_bz.0).unwrap(),
                 &ata_program, // Replace with ATA program ID
             );
 
@@ -547,13 +547,13 @@ pub mod raydium {
             );
 
             let (token0_vault, _) = Pubkey::find_program_address(
-                &[b"pool_vault", &pool_state_account.0, &denom_0_bz],
+                &[b"pool_vault", &pool_state_account.0, &denom_0_bz.0],
                 &raydium_swap_program,
             )
             .unwrap();
 
             let (token1_vault, _) = Pubkey::find_program_address(
-                &[b"pool_vault", &pool_state_account.0, &denom_1_bz],
+                &[b"pool_vault", &pool_state_account.0, &denom_1_bz.0],
                 &raydium_swap_program,
             )
             .unwrap();
@@ -574,10 +574,10 @@ pub mod raydium {
                 AMM_CONFIG_ACCOUNT.to_string(),
                 AUTHORITY_ACCOUNT.to_string(),
                 pool_state_account.to_string(),
-                Pubkey::from_slice(&denom_0_bz.as_slice())
+                Pubkey::from_slice(&denom_0_bz.0)
                     .unwrap()
                     .to_string(),
-                Pubkey::from_slice(&denom_1_bz.as_slice())
+                Pubkey::from_slice(&denom_1_bz.0)
                     .unwrap()
                     .to_string(),
                 lp_mint.to_string(),
