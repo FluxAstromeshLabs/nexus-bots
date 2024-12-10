@@ -19,7 +19,7 @@ mod strategy;
 
 const PERCENTAGE_BPS: u128 = 10_000;
 const EMBEDDED_CRON_BINARY: &[u8] = include_bytes!("../../../cron/dumpsad-cron/target/wasm32-unknown-unknown/release/dumpsad_cron.wasm");
-const INITIAL_AMOUNT: &Uint128 = &Uint128::new(1_000_000_000_000_000);
+const INITIAL_AMOUNT: &Uint128 = &Uint128::new(1_000_000_000_000_000_000);
 
 #[cw_serde]
 pub struct InstantiateMsg {}

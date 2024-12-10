@@ -11,7 +11,7 @@ pub struct BondingCurve {
 }
 
 impl BondingCurve {
-    const SOL_BPS: Uint128 = Uint128::new(1_000_000_000u128);
+    const PRECISION_MULTIPLIER: Uint128 = Uint128::new(1_000_000_000u128);
     const DEFAULT_A: Uint128 = Uint128::new(1073000191 * 1_000_000_000u128);
     const DEFAULT_B: Uint128 = Uint128::new(32190005730 * 1_000_000_000u128);
 
@@ -26,15 +26,15 @@ impl BondingCurve {
 
     pub fn price(&self) -> Uint128 {
         // Price: (30 + x)^2 / b
-        let tmp = Uint128::new(30) * BondingCurve::SOL_BPS + self.x;
-        (tmp * tmp) / self.b / BondingCurve::SOL_BPS
+        let tmp = Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER + self.x;
+        (tmp * tmp) / self.b
     }
 
     // dY = delta Y, dX = delta X
     pub fn buy(&mut self, dx: Uint128) -> Uint128 {
         // dY = y - a + b / (30 + x + dX)
-        let new_x = Uint128::new(30) * BondingCurve::SOL_BPS + self.x + dx;
-        let new_y = self.a - self.b / new_x;
+        let new_x = Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER + self.x + dx;
+        let new_y = self.a - (self.b * BondingCurve::PRECISION_MULTIPLIER) / new_x;
         let dy = new_y - self.y;
 
         // Update state
@@ -47,7 +47,7 @@ impl BondingCurve {
     pub fn sell(&mut self, dy: Uint128) -> Uint128 {
         // dX = 30 + x - b / (y - dY - a)
         let new_y = self.y - dy;
-        let new_x = Uint128::new(30) * BondingCurve::SOL_BPS + self.x - self.b / (new_y - self.a);
+        let new_x = Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER + self.x - (self.b * BondingCurve::PRECISION_MULTIPLIER) / (new_y - self.a);
         let dx = self.x - new_x;
 
         // Update state
