@@ -6,22 +6,13 @@ pub mod raydium {
     pub struct Raydium {}
 
     impl PoolManager for Raydium {
-        fn create_pool(
+        fn create_pool_with_initial_liquidity(
             &self,
             sender: String,
             denom_0: String,
+            amount_0: Uint128,
             denom_1: String,
-        ) -> Vec<FISInstruction> {
-            vec![]
-        }
-
-        fn provide_liquidity_no_lp(
-            &self,
-            pool_id: String,
-            denom_0: String,
-            denom_0_amount: Uint128,
-            denom_1: String,
-            denom_1_amount: Uint128,
+            amount_1: Uint128,
         ) -> Vec<FISInstruction> {
             vec![]
         }

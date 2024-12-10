@@ -132,19 +132,15 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             _ => unreachable!(),
         };
 
-        let create_pool_ixs =
-            pool.create_pool(pool_address.clone(), denom_0.clone(), denom_1.clone());
-        instructions.extend(create_pool_ixs);
-
-        // 3. denom0, denom1 for liquidity
-        let proivde_liquidity_ixs = pool.provide_liquidity_no_lp(
+        let create_pool_ixs = pool.create_pool_with_initial_liquidity(
             pool_address.clone(),
             denom_0.clone(),
             amount_0,
             denom_1.clone(),
             amount_1,
         );
-        instructions.extend(proivde_liquidity_ixs);
+        instructions.extend(create_pool_ixs);
+        // 3. denom0, denom1 for liquidity
         // TODO: stop cron after gradauate
     }
 

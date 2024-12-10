@@ -95,27 +95,15 @@ pub struct QueryDenomLinkResponse {
 }
 
 pub trait PoolManager {
-    // instructions to create pool
-    fn create_pool(&self, sender: String, denom_0: String, denom_1: String) -> Vec<FISInstruction>;
-
-    // provide liquidity to pool, don't receive LP
-    fn provide_liquidity_no_lp(
+    fn create_pool_with_initial_liquidity(
         &self,
         sender: String,
         denom_0: String,
-        denom_0_amount: Uint128,
+        amount_0: Uint128,
         denom_1: String,
-        denom_1_amount: Uint128,
+        amount_1: Uint128,
     ) -> Vec<FISInstruction>;
 }
-
-// pub fn keccak256(input: &[u8]) -> [u8; 32] {
-//     let mut hash = Keccak::v256();
-//     hash.update(input);
-//     let mut output = [0u8; 32];
-//     hash.finalize(output.as_mut_slice());
-//     output
-// }
 
 pub fn sha256(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
