@@ -66,12 +66,7 @@ pub struct FISQueryInstruction {
 }
 
 impl FISQueryInstruction {
-    pub fn new(
-        plane: String,
-        action: String,
-        address: Vec<u8>,
-        input: Vec<Vec<u8>>,
-    ) -> Self {
+    pub fn new(plane: String, action: String, address: Vec<u8>, input: Vec<Vec<u8>>) -> Self {
         FISQueryInstruction {
             plane,
             action,
@@ -90,8 +85,10 @@ pub struct PermissionConfig {
 
 impl PermissionConfig {
     pub fn new(access_type: String, addresses: Vec<String>) -> Self {
-        PermissionConfig { 
-            ty: access_type, addresses }
+        PermissionConfig {
+            ty: access_type,
+            addresses,
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 use astromesh::{
-    keccak256, sha256, AccountResponse, CommissionConfig, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, MsgCreatePool, MsgUpdatePool, NexusAction, PLANE_COSMOS, QUERY_ACTION_COSMOS_BANK_BALANCE, QUERY_ACTION_COSMOS_KVSTORE, QUERY_ACTION_COSMOS_QUERY
+    keccak256, sha256, AccountResponse, CommissionConfig, FISInput, FISInstruction, InitialMint,
+    MsgAstroTransfer, MsgCreateBankDenom, MsgCreatePool, MsgUpdatePool, NexusAction, PLANE_COSMOS,
+    QUERY_ACTION_COSMOS_BANK_BALANCE, QUERY_ACTION_COSMOS_KVSTORE, QUERY_ACTION_COSMOS_QUERY,
 };
 use bech32::{Bech32, Bech32m, Hrp};
 use cosmwasm_schema::cw_serde;
@@ -9,16 +11,20 @@ use cosmwasm_std::{
     StdError, StdResult, Uint128, Uint64,
 };
 use curve::BondingCurve;
-use strategy::{FISQueryInstruction, FISQueryRequest, MsgConfigStrategy, PermissionConfig, StrategyMetadata};
 use std::vec::Vec;
+use strategy::{
+    FISQueryInstruction, FISQueryRequest, MsgConfigStrategy, PermissionConfig, StrategyMetadata,
+};
 mod astromesh;
 mod curve;
+mod strategy;
 mod svm;
 mod test;
-mod strategy;
 
 const PERCENTAGE_BPS: u128 = 10_000;
-const EMBEDDED_CRON_BINARY: &[u8] = include_bytes!("../../../cron/dumpsad-cron/target/wasm32-unknown-unknown/release/dumpsad_cron.wasm");
+const EMBEDDED_CRON_BINARY: &[u8] = include_bytes!(
+    "../../../cron/dumpsad-cron/target/wasm32-unknown-unknown/release/dumpsad_cron.wasm"
+);
 const INITIAL_AMOUNT: &Uint128 = &Uint128::new(1_000_000_000_000_000_000);
 
 #[cw_serde]
@@ -136,32 +142,49 @@ fn handle_create_token(
 
     // TODO: Use static sum to save some gas
     let cron_binary_checksum = sha256(EMBEDDED_CRON_BINARY);
-    let cron_id = keccak256(&[creator_bz.as_slice(), cron_binary_checksum.as_slice(), &(acc_info.account.sequence.u64()+1).to_le_bytes()].concat());
+    let cron_id = keccak256(
+        &[
+            creator_bz.as_slice(),
+            cron_binary_checksum.as_slice(),
+            &(acc_info.account.sequence.u64() + 1).to_le_bytes(),
+        ]
+        .concat(),
+    );
     let create_graduate_cron_msg = MsgConfigStrategy::new(
-        creator.clone(), 
-        strategy::Config::Deploy, 
-        "".to_string(), 
-        EMBEDDED_CRON_BINARY.to_vec(), 
+        creator.clone(),
+        strategy::Config::Deploy,
+        "".to_string(),
+        EMBEDDED_CRON_BINARY.to_vec(),
         Some(FISQueryRequest::new(vec![
             FISQueryInstruction::new(
                 PLANE_COSMOS.to_string(),
-                QUERY_ACTION_COSMOS_BANK_BALANCE.to_string(), 
-                vec![], 
+                QUERY_ACTION_COSMOS_BANK_BALANCE.to_string(),
+                vec![],
                 vec![
-                    format!("{},{}", pool_address, pool_address).as_bytes().to_vec(),
+                    format!("{},{}", pool_address, pool_address)
+                        .as_bytes()
+                        .to_vec(),
                     format!("sol,{}", denom_base).as_bytes().to_vec(),
                 ],
             ),
             FISQueryInstruction::new(
                 PLANE_COSMOS.to_string(),
-                QUERY_ACTION_COSMOS_KVSTORE.to_string(), 
-                vec![], 
+                QUERY_ACTION_COSMOS_KVSTORE.to_string(),
+                vec![],
                 vec![
                     "wasm".as_bytes().to_vec(),
                     [&[4u8], "lastContractId".as_bytes()].concat().to_vec(),
                 ],
             ),
-        ])), 
+            FISQueryInstruction::new(
+                PLANE_COSMOS.to_string(),
+                QUERY_ACTION_COSMOS_KVSTORE.to_string(),
+                vec![],
+                vec![
+                    "/flux/oracle/v1beta1/denom_metadata/SOL".as_bytes().to_vec(),
+                ],
+            ),
+        ])),
         Some(PermissionConfig::new("anyone".to_string(), vec![])),
         Some(StrategyMetadata {
             name: "graduate cron".to_string(),
@@ -172,8 +195,11 @@ fn handle_create_token(
             tags: vec![],
             schema: "{}".to_string(),
             cron_gas_price: Uint128::from(500_000_000u128),
-            aggregated_query_keys:vec![],
-            cron_input: format!(r#"{{"vm":"{}","pool_address":"{}"}}"#, target_vm, pool_address),
+            aggregated_query_keys: vec![],
+            cron_input: format!(
+                r#"{{"vm":"{}","pool_address":"{}"}}"#,
+                target_vm, pool_address
+            ),
             cron_interval: 2,
             supported_apps: vec![],
         }),
@@ -194,7 +220,7 @@ fn handle_create_token(
         false,
         vec![],
         "".to_string(),
-        vec![bot_id, HexBinary::from(cron_id).to_string()]
+        vec![bot_id, HexBinary::from(cron_id).to_string()],
     );
 
     Ok(vec![
@@ -240,10 +266,7 @@ fn handle_buy(
     let meme_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(1).unwrap())?;
 
     // calculate the delta Y
-    let mut curve = BondingCurve::default(
-        quote_coin.amount,
-        INITIAL_AMOUNT - meme_coin.amount,
-    );
+    let mut curve = BondingCurve::default(quote_coin.amount, INITIAL_AMOUNT - meme_coin.amount);
     let pre_price = curve.price();
     let worst_price = pre_price
         .checked_mul(slippage.checked_add(Uint128::new(PERCENTAGE_BPS))?)?
@@ -311,10 +334,7 @@ fn handle_sell(
     let meme_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(1).unwrap())?;
 
     // Initialize bonding curve
-    let mut curve = BondingCurve::default(
-        quote_coin.amount,
-        INITIAL_AMOUNT - meme_coin.amount,
-    );
+    let mut curve = BondingCurve::default(quote_coin.amount, INITIAL_AMOUNT - meme_coin.amount);
     let pre_price = curve.price();
     let worst_price = pre_price
         .checked_mul(slippage.checked_add(Uint128::new(PERCENTAGE_BPS))?)?
@@ -376,7 +396,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             uri,
             target_vm,
             bot_id,
-        } => handle_create_token(deps, env, name, description, uri, target_vm, bot_id, &msg.fis_input),
+        } => handle_create_token(
+            deps,
+            env,
+            name,
+            description,
+            uri,
+            target_vm,
+            bot_id,
+            &msg.fis_input,
+        ),
         NexusAction::Buy {
             denom,
             amount,

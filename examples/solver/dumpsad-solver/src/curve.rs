@@ -47,7 +47,8 @@ impl BondingCurve {
     pub fn sell(&mut self, dy: Uint128) -> Uint128 {
         // dX = 30 + x - b / (y - dY - a)
         let new_y = self.y - dy;
-        let new_x = Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER + self.x - (self.b * BondingCurve::PRECISION_MULTIPLIER) / (new_y - self.a);
+        let new_x = Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER + self.x
+            - (self.b * BondingCurve::PRECISION_MULTIPLIER) / (new_y - self.a);
         let dx = self.x - new_x;
 
         // Update state

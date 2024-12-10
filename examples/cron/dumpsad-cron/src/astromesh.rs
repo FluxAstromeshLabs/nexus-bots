@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, DenomMetadata, Int128, Uint128, Uint64};
+use cosmwasm_std::{Binary, Coin, DenomMetadata, Int128, Int64, Uint128, Uint64};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 // use tiny_keccak::{Hasher, Keccak};
@@ -103,6 +103,19 @@ pub trait PoolManager {
         denom_1: String,
         amount_1: Uint128,
     ) -> Vec<FISInstruction>;
+}
+
+#[cw_serde]
+pub struct OracleEntry {
+    pub symbol: String,
+    pub decimal: Int64,
+    pub value: Uint128,
+    pub timestamp: Uint64,
+}
+
+#[cw_serde]
+pub struct OracleEntries {
+    pub entries: Vec<OracleEntry>,
 }
 
 pub fn sha256(input: &[u8]) -> [u8; 32] {
