@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Uint256,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint256
 };
 use std::vec::Vec;
 
@@ -40,8 +39,16 @@ pub enum AbstractionObject {
 }
 
 #[cw_serde]
+pub struct StrategyEvent {
+    pub topic: String,
+    pub data: Binary,
+}
+
+#[cw_serde]
 pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
+    events: Vec<StrategyEvent>,
+    result: String,
 }
 
 #[cw_serde]
@@ -162,5 +169,12 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
     };
 
-    StdResult::Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
+    StdResult::Ok(to_json_binary(&StrategyOutput { 
+        instructions,
+        events: vec![StrategyEvent {
+            topic: "token_transfer".to_string(),
+            data: Binary::from("any data".as_bytes()),
+        }],
+        result: "transferred/withdrew to planes".to_string()
+    }).unwrap())
 }

@@ -20,6 +20,7 @@ mod curve;
 mod strategy;
 mod svm;
 mod test;
+mod events;
 
 const PERCENTAGE_BPS: u128 = 10_000;
 const EMBEDDED_CRON_BINARY: &[u8] = include_bytes!(
@@ -60,8 +61,37 @@ pub struct QueryMsg {
 }
 
 #[cw_serde]
+pub struct StrategyEvent {
+    pub topic: String,
+    pub data: Binary,
+}
+
+#[cw_serde]
+pub struct CreateTokenEvent {
+    pub denom: String,
+    pub name: String,
+    pub symbol: String,
+    pub description: String,
+    pub pool_address: String,
+    pub vm: String,
+    pub logo: String,
+    pub cron_id: String,
+    pub solver_id: String,
+}
+
+#[cw_serde]
+pub struct TradeTokenEvent {
+    pub denom: String,
+    pub price: Uint128,
+    pub trader: String,
+}
+
+
+#[cw_serde]
 pub struct StrategyOutput {
     instructions: Vec<FISInstruction>,
+    events: Vec<StrategyEvent>,
+    result: String,
 }
 
 fn handle_create_token(
@@ -73,7 +103,7 @@ fn handle_create_token(
     target_vm: String,
     bot_id: String,
     fis_input: &Vec<FISInput>,
-) -> StdResult<Vec<FISInstruction>> {
+) -> StdResult<StrategyOutput> {
     let creator = env.contract.address.to_string();
     let acc_info = from_json::<AccountResponse>(fis_input.get(0).unwrap().data.get(0).unwrap())?;
     let (_, creator_bz) =
@@ -220,35 +250,46 @@ fn handle_create_token(
         false,
         vec![],
         "".to_string(),
-        vec![bot_id, HexBinary::from(cron_id).to_string()],
+        vec![bot_id.clone(), HexBinary::from(cron_id).to_string()],
     );
 
-    Ok(vec![
-        FISInstruction {
-            plane: "COSMOS".to_string(),
-            action: "COSMOS_INVOKE".to_string(),
-            address: "".to_string(),
-            msg: to_json_vec(&create_pool_msg)?,
-        },
-        FISInstruction {
-            plane: "COSMOS".to_string(),
-            action: "COSMOS_INVOKE".to_string(),
-            address: "".to_string(),
-            msg: to_json_vec(&create_graduate_cron_msg)?, // cron
-        },
-        FISInstruction {
-            plane: "COSMOS".to_string(),
-            action: "COSMOS_INVOKE".to_string(),
-            address: "".to_string(),
-            msg: to_json_vec(&create_denom_msg)?,
-        },
-        FISInstruction {
-            plane: "COSMOS".to_string(),
-            action: "COSMOS_INVOKE".to_string(),
-            address: "".to_string(),
-            msg: to_json_vec(&update_pool_msg)?,
-        },
-    ])
+    Ok(StrategyOutput {
+        instructions: vec![
+            FISInstruction {
+                plane: "COSMOS".to_string(),
+                action: "COSMOS_INVOKE".to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&create_pool_msg)?,
+            },
+            FISInstruction {
+                plane: "COSMOS".to_string(),
+                action: "COSMOS_INVOKE".to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&create_denom_msg)?,
+            },
+            FISInstruction {
+                plane: "COSMOS".to_string(),
+                action: "COSMOS_INVOKE".to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&create_graduate_cron_msg)?,
+            },
+        ],
+        events: vec![StrategyEvent {
+            topic: "create_token".to_string(),
+            data: to_json_binary(&CreateTokenEvent {
+                denom: denom_base.clone(),
+                name: name.clone(),
+                symbol: denom_symbol.clone(),
+                description: description.clone(),
+                pool_address: pool_address.clone(),
+                vm: target_vm.clone(),
+                logo: uri.clone(),
+                cron_id: HexBinary::from(cron_id).to_string(),
+                solver_id: bot_id.clone(),
+            })?,
+        }],
+        result: "Token creation successful".to_string(),
+    })
 }
 
 fn handle_buy(
@@ -259,7 +300,7 @@ fn handle_buy(
     slippage: Uint128,
     pool_address: String, // TODO: where can frontend get this pool address?
     fis_input: &Vec<FISInput>,
-) -> StdResult<Vec<FISInstruction>> {
+) -> StdResult<StrategyOutput> {
     let trader = env.contract.address.clone();
     // load quote amount
     let quote_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(0).unwrap())?;
@@ -316,7 +357,18 @@ fn handle_buy(
         ))?,
     };
 
-    Ok(vec![trader_send_quote, pool_send_meme])
+    Ok(StrategyOutput {
+        instructions: vec![trader_send_quote, pool_send_meme],
+        events: vec![StrategyEvent {
+            topic: "buy_token".to_string(),
+            data: to_json_binary(&TradeTokenEvent {
+                denom,
+                price: post_price,
+                trader: trader.to_string(),
+            })?,
+        }],
+        result: "Token purchase successful".to_string(),
+    })
 }
 
 fn handle_sell(
@@ -327,7 +379,7 @@ fn handle_sell(
     slippage: Uint128,
     pool_address: String, // TODO: where can frontend get this pool address?
     fis_input: &Vec<FISInput>,
-) -> StdResult<Vec<FISInstruction>> {
+) -> StdResult<StrategyOutput> {
     let trader = env.contract.address.clone();
     // Load quote and meme amounts from input
     let quote_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(0).unwrap())?;
@@ -383,13 +435,24 @@ fn handle_sell(
         ))?,
     };
 
-    Ok(vec![trader_send_meme, pool_send_quote])
+    Ok(StrategyOutput {
+        instructions: vec![trader_send_meme, pool_send_quote],
+        events: vec![StrategyEvent {
+            topic: "sell_token".to_string(),
+            data: to_json_binary(&TradeTokenEvent {
+                denom,
+                price: post_price,
+                trader: trader.to_string(),
+            })?,
+        }],
+        result: "Token purchase successful".to_string(),
+    })
 }
 
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let nexus_action: NexusAction = from_json(&msg.msg)?;
-    let instructions = match nexus_action {
+    let output = match nexus_action {
         NexusAction::CreateToken {
             name,
             description,
@@ -436,5 +499,5 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ),
     }?;
 
-    Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
+    Ok(to_json_binary(&output).unwrap())
 }
