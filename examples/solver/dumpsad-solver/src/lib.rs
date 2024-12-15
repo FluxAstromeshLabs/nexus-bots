@@ -249,8 +249,8 @@ fn handle_create_token(
         vec![],
         false,
         vec![],
-        "".to_string(),
-        vec![bot_id.clone(), HexBinary::from(cron_id).to_string()],
+        HexBinary::from(cron_id).to_string(),
+        bot_id.clone(),
     );
 
     Ok(StrategyOutput {
@@ -260,6 +260,12 @@ fn handle_create_token(
                 action: "COSMOS_INVOKE".to_string(),
                 address: "".to_string(),
                 msg: to_json_vec(&create_pool_msg)?,
+            },
+            FISInstruction {
+                plane: "COSMOS".to_string(),
+                action: "COSMOS_INVOKE".to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&update_pool_msg)?,
             },
             FISInstruction {
                 plane: "COSMOS".to_string(),

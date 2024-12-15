@@ -158,7 +158,7 @@ pub struct MsgUpdatePool {
     pub charge_management_fee: bool,
     pub trading_fee: Vec<Coin>,
     pub cron_id: String,
-    pub drivers: Vec<String>,
+    pub solver_id: String,
 }
 
 impl MsgUpdatePool {
@@ -170,7 +170,7 @@ impl MsgUpdatePool {
         charge_management_fee: bool,
         trading_fee: Vec<Coin>,
         cron_id: String,
-        drivers: Vec<String>,
+        solver_id: String,
     ) -> Self {
         MsgUpdatePool {
             ty: "/flux.interpool.v1beta1.MsgUpdatePool".to_string(),
@@ -181,7 +181,7 @@ impl MsgUpdatePool {
             charge_management_fee,
             trading_fee,
             cron_id,
-            drivers,
+            solver_id,
         }
     }
 }
