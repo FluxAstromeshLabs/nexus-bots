@@ -307,6 +307,8 @@ fn handle_buy(
     pool_address: String, // TODO: where can frontend get this pool address?
     fis_input: &Vec<FISInput>,
 ) -> StdResult<StrategyOutput> {
+    assert!(amount.gt(&Uint128::zero()), "amount must be positive");
+
     let trader = env.contract.address.clone();
     // load quote amount
     let quote_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(0).unwrap())?;
@@ -320,6 +322,8 @@ fn handle_buy(
         .checked_div(Uint128::new(PERCENTAGE_BPS))?;
 
     let bought_amount = curve.buy(amount);
+    assert!(bought_amount.gt(&Uint128::zero()), "cannot buy 0 amount");
+
     let post_price = curve.price();
     assert!(
         post_price.lt(&worst_price),
@@ -386,7 +390,9 @@ fn handle_sell(
     pool_address: String, // TODO: where can frontend get this pool address?
     fis_input: &Vec<FISInput>,
 ) -> StdResult<StrategyOutput> {
+    assert!(amount.gt(&Uint128::zero()), "amount must be positive");
     let trader = env.contract.address.clone();
+    
     // Load quote and meme amounts from input
     let quote_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(0).unwrap())?;
     let meme_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(1).unwrap())?;
@@ -398,8 +404,10 @@ fn handle_sell(
         .checked_mul(slippage.checked_add(Uint128::new(PERCENTAGE_BPS))?)?
         .checked_div(Uint128::new(PERCENTAGE_BPS))?;
 
-    // Calculate sold amount and verify slippage
-    let sold_amount = curve.sell(amount);
+    // Calculate receive amount and verify slippage
+    let receive_amount = curve.sell(amount);
+    assert!(receive_amount.gt(&Uint128::zero()), "receive zero sol, try larger meme amount");
+
     let post_price = curve.price();
     assert!(
         post_price >= worst_price,
@@ -436,7 +444,7 @@ fn handle_sell(
             PLANE_COSMOS.to_string(),
             Coin {
                 denom: quote_coin.denom,
-                amount: sold_amount,
+                amount: receive_amount,
             },
         ))?,
     };
