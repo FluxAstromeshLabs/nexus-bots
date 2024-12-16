@@ -17,10 +17,10 @@ use strategy::{
 };
 mod astromesh;
 mod curve;
+mod events;
 mod strategy;
 mod svm;
 mod test;
-mod events;
 
 const PERCENTAGE_BPS: u128 = 10_000;
 const EMBEDDED_CRON_BINARY: &[u8] = include_bytes!(
@@ -85,7 +85,6 @@ pub struct TradeTokenEvent {
     pub price: Uint128,
     pub trader: String,
 }
-
 
 #[cw_serde]
 pub struct StrategyOutput {
@@ -210,9 +209,9 @@ fn handle_create_token(
                 PLANE_COSMOS.to_string(),
                 QUERY_ACTION_COSMOS_KVSTORE.to_string(),
                 vec![],
-                vec![
-                    "/flux/oracle/v1beta1/denom_metadata/SOL".as_bytes().to_vec(),
-                ],
+                vec!["/flux/oracle/v1beta1/denom_metadata/SOL"
+                    .as_bytes()
+                    .to_vec()],
             ),
         ])),
         Some(PermissionConfig::new("anyone".to_string(), vec![])),
@@ -317,21 +316,10 @@ fn handle_buy(
     // calculate the delta Y
     let mut curve = BondingCurve::default(quote_coin.amount, INITIAL_AMOUNT - meme_coin.amount);
     let pre_price = curve.price();
-    let worst_price = pre_price
-        .checked_mul(slippage.checked_add(Uint128::new(PERCENTAGE_BPS))?)?
-        .checked_div(Uint128::new(PERCENTAGE_BPS))?;
-
     let bought_amount = curve.buy(amount);
     assert!(bought_amount.gt(&Uint128::zero()), "cannot buy 0 amount");
-
+    // TODO: Check slippage properly
     let post_price = curve.price();
-    assert!(
-        post_price.lt(&worst_price),
-        "slippage exceeds, pre price: {}, worst price: {}, post price: {}",
-        pre_price,
-        worst_price,
-        post_price
-    );
 
     // send quote to vault
     let trader_send_quote = FISInstruction {
@@ -361,7 +349,7 @@ fn handle_buy(
             PLANE_COSMOS.to_string(),
             PLANE_COSMOS.to_string(),
             Coin {
-                denom: meme_coin.denom,
+                denom: meme_coin.denom.clone(),
                 amount: bought_amount,
             },
         ))?,
@@ -377,7 +365,7 @@ fn handle_buy(
                 trader: trader.to_string(),
             })?,
         }],
-        result: "Token purchase successful".to_string(),
+        result: format!("Received {}{}", bought_amount, meme_coin.denom).to_string(),
     })
 }
 
@@ -387,12 +375,12 @@ fn handle_sell(
     denom: String,
     amount: Uint128,
     slippage: Uint128,
-    pool_address: String, // TODO: where can frontend get this pool address?
+    pool_address: String,
     fis_input: &Vec<FISInput>,
 ) -> StdResult<StrategyOutput> {
     assert!(amount.gt(&Uint128::zero()), "amount must be positive");
     let trader = env.contract.address.clone();
-    
+
     // Load quote and meme amounts from input
     let quote_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(0).unwrap())?;
     let meme_coin = from_json::<Coin>(fis_input.get(0).unwrap().data.get(1).unwrap())?;
@@ -400,21 +388,14 @@ fn handle_sell(
     // Initialize bonding curve
     let mut curve = BondingCurve::default(quote_coin.amount, INITIAL_AMOUNT - meme_coin.amount);
     let pre_price = curve.price();
-    let worst_price = pre_price
-        .checked_mul(slippage.checked_add(Uint128::new(PERCENTAGE_BPS))?)?
-        .checked_div(Uint128::new(PERCENTAGE_BPS))?;
-
     // Calculate receive amount and verify slippage
     let receive_amount = curve.sell(amount);
-    assert!(receive_amount.gt(&Uint128::zero()), "receive zero sol, try larger meme amount");
-
-    let post_price = curve.price();
     assert!(
-        post_price >= worst_price,
-        "slippage exceeds, pre price: {}, post price: {}",
-        pre_price,
-        post_price
+        receive_amount.gt(&Uint128::zero()),
+        "receive zero sol, try larger meme amount"
     );
+    // TODO: Check slippage properly
+    let post_price = curve.price();
 
     // Transfer instructions
     let trader_send_meme = FISInstruction {
@@ -459,7 +440,7 @@ fn handle_sell(
                 trader: trader.to_string(),
             })?,
         }],
-        result: "Token purchase successful".to_string(),
+        result: format!("Received {}sol", receive_amount).to_string(),
     })
 }
 

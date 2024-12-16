@@ -1,6 +1,6 @@
 use cosmwasm_std::Uint128;
 
-// curve y = a*1000_000_000 - (b*1000_000_000) / (30 * 1_000_000_000 + x)
+// curve y = a*1_000_000_000 - (b*1_000_000_000) / (30 * 1_000_000_000 + x)
 // both SOL and meme has 9 decimals
 // where: y: total meme minted, x: total sol deposited
 pub struct BondingCurve {
@@ -48,7 +48,7 @@ impl BondingCurve {
         // dX = 30 + x - b / (y - dY - a)
         let new_y = self.y - dy;
         let new_x = Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER + self.x
-            - (self.b * BondingCurve::PRECISION_MULTIPLIER) / (new_y - self.a);
+            - (self.b * BondingCurve::PRECISION_MULTIPLIER) / (self.a - new_y);
         let dx = self.x - new_x;
 
         // Update state

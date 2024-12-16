@@ -116,7 +116,6 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let quote_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(0).unwrap())?; // SOL
     let meme_coin = from_json::<Coin>(msg.fis_input.get(0).unwrap().data.get(1).unwrap())?;
     // TODO: Get denom link here for EVM, SVM
-    // TODO: pool graduate condition (phuc)
     let quote_price_response =
         from_json::<OracleEntries>(msg.fis_input.get(2).unwrap().data.get(0).unwrap())?;
     let quote_price = quote_price_response.entries.get(0).unwrap().value;
