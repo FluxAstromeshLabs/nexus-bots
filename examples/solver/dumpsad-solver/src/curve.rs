@@ -10,11 +10,8 @@ pub struct BondingCurve {
     pub y: Uint128,
 }
 
-// 67062511 = 1073000191-32190005730/(32)
-// 32190005730/(1073000191 - 50000000)
-
 impl BondingCurve {
-    const PRECISION_MULTIPLIER: Uint128 = Uint128::new(1_000_000_000u128);
+    pub const PRECISION_MULTIPLIER: Uint128 = Uint128::new(1_000_000_000u128);
     const DEFAULT_A: Uint128 = Uint128::new(1073000191 * 1_000_000_000u128);
     const DEFAULT_B: Uint128 = Uint128::new(32190005730 * 1_000_000_000u128);
 
@@ -55,9 +52,8 @@ impl BondingCurve {
         // newY = a - b / (30 + newX)
         // newY = y - dy
         // newX = x - dx => dx = x - newX
-        let new_y = self.y - dy; // (10^9*10^9 - 932937488062500000 - 10000000000000) = 67052511937500000
-        let new_x = (self.b * BondingCurve::PRECISION_MULTIPLIER) / (self.a - new_y); // 32190005730*10^9*10^9 / (1073000191*10^9 - 67052511937500000)
-                                                                                      // new_x = 30+x-dx => dx = 30+x-new_x
+        let new_y = self.y - dy;
+        let new_x = (self.b * BondingCurve::PRECISION_MULTIPLIER) / (self.a - new_y);
         let dx = Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER + self.x - new_x;
         // Update state
         self.x = new_x;
