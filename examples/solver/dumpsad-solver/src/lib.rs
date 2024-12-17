@@ -11,7 +11,7 @@ use cosmwasm_std::{
     Response, StdError, StdResult, Uint128, Uint64,
 };
 use curve::BondingCurve;
-use events::{CreateTokenEvent, TradeTokenEvent};
+use events::{CreateTokenEvent, GraduateEvent, TradeTokenEvent};
 use interpool::{CommissionConfig, MsgCreatePool, MsgUpdatePool, QueryPoolResponse};
 use std::vec::Vec;
 mod astromesh;
@@ -25,6 +25,7 @@ mod test;
 const PERCENTAGE_BPS: u128 = 10_000;
 const DEFAULT_QUOTE_DENOM: &str = "sol";
 const INITIAL_AMOUNT: &Uint128 = &Uint128::new(1_000_000_000_000_000_000);
+const MARKET_CAP_TO_GRADUATE: &Uint128 = &Uint128::new(20_000_000_000);
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -207,7 +208,7 @@ fn get_pool_sol_meme_amounts(
     let meme_coin = pool_inventory
         .into_iter()
         .find(|c| &c.denom == meme_denom)
-        .ok_or_else(|| StdError::generic_err(format!("{} not found", meme_denom)))?
+        .ok_or_else(|| StdError::generic_err(format!("denom {} not found", meme_denom)))?
         .amount;
     Ok((sol_coin, meme_coin))
 }
@@ -280,7 +281,7 @@ fn handle_buy(
         action: "COSMOS_INVOKE".to_string(),
         address: "".to_string(),
         msg: to_json_vec(&MsgAstroTransfer::new(
-            pool_address,
+            pool_address.clone(),
             trader.to_string(),
             PLANE_COSMOS.to_string(),
             PLANE_COSMOS.to_string(),
@@ -288,17 +289,52 @@ fn handle_buy(
         ))?,
     };
 
-    Ok(StrategyOutput {
-        instructions: vec![trader_send_quote, pool_send_meme],
-        events: vec![StrategyEvent {
-            topic: "buy_token".to_string(),
-            data: to_json_binary(&TradeTokenEvent {
-                denom: meme_denom.clone(),
+    let mut instructions = vec![trader_send_quote, pool_send_meme];
+    let mut events = vec![StrategyEvent {
+        topic: "buy_token".to_string(),
+        data: to_json_binary(&TradeTokenEvent {
+            denom: meme_denom.clone(),
+            price: post_price,
+            trader: trader.to_string(),
+            amount: received_amount,
+        })?,
+    }];
+
+    let is_graduate = (post_price * INITIAL_AMOUNT / BondingCurve::PRECISION_MULTIPLIER).ge(MARKET_CAP_TO_GRADUATE);
+    if is_graduate {
+        let update_pool_msg = MsgUpdatePool::new(
+            pool_address.clone(),
+            pool_res.pool.pool_id,
+            vec![],
+            "1".as_bytes().to_vec(),
+            false,
+            vec![],
+            "".to_string(),
+            "".to_string(),
+        );
+
+        instructions.push(FISInstruction {
+            plane: "COSMOS".to_string(),
+            action: "COSMOS_INVOKE".to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&update_pool_msg)?,
+        });
+        
+        events.push(StrategyEvent {
+            topic: "graduate".to_string(),
+            data: to_json_binary(&GraduateEvent {
                 price: post_price,
-                trader: trader.to_string(),
-                amount: received_amount,
+                pool_address: pool_address.clone(),
+                meme_denom: meme_denom.clone(),
+                meme_amount: meme_amount - received_amount,
+                sol_amount: sol_amount + amount,
             })?,
-        }],
+        });
+    }
+
+    Ok(StrategyOutput {
+        instructions,
+        events,
         result: to_json_string(&received_coin)?,
     })
 }

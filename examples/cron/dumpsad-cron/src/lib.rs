@@ -92,20 +92,6 @@ pub struct CronMsg {
     pub pool_address: String,
 }
 
-pub fn is_graduated(quote_amount: Uint128, sol_price: Uint128) -> bool {
-    // 10^9 * (30+x)^2 / 32190005730 * sol_price >= 100000
-    // graduate condition: market cap >= $100000
-    // see bonding curve for the price formula
-    // for simplicity, sol decimals = mem decimals => sol multiplier = meme multiplier
-    let cap_in_sol = Uint128::new(1_000_000_000)
-        * SOL_PRECISION_MULTIPLIER
-        * (Uint128::new(30) * SOL_PRECISION_MULTIPLIER + quote_amount)
-        / (Uint128::new(32190005730) * SOL_PRECISION_MULTIPLIER);
-    let cap_in_usd = cap_in_sol * sol_price / SOL_PRECISION_MULTIPLIER / Uint128::new(100_000_000);
-
-    return cap_in_usd.ge(GRADUATE_THRESHOLD_USD)
-}
-
 #[entry_point]
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cron_msg = from_json::<CronMsg>(msg.msg)?;

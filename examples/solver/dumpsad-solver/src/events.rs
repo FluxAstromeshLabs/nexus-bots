@@ -24,9 +24,9 @@ pub struct TradeTokenEvent {
 
 #[cw_serde]
 pub struct GraduateEvent {
-    pub denom: String,
     pub price: Uint128,
     pub pool_address: String,
+    pub meme_denom: String,
     pub meme_amount: Uint128,
-    pub quote_amount: Uint128,
+    pub sol_amount: Uint128,
 }
