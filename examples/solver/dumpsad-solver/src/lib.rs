@@ -328,6 +328,7 @@ fn handle_buy(
                 meme_denom: meme_denom.clone(),
                 meme_amount: meme_amount - received_amount,
                 sol_amount: sol_amount + amount,
+                vm: pool_res.pool.input_blob.unwrap().to_string(),
             })?,
         });
     }
