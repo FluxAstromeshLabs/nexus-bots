@@ -122,7 +122,6 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         // TODO: Get denom link here for EVM, SVM
         // handle graduate
-        let mut instructions = vec![];
         let contract_sequence = msg.fis_input.get(1).unwrap().data.get(0).unwrap();
         let (mut denom_0, mut denom_1) = (sol_coin.denom, meme_coin.denom);
         let (mut amount_0, mut amount_1) = (sol_coin.amount, meme_coin.amount);
