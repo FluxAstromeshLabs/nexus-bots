@@ -3,17 +3,14 @@ use cosmwasm_std::Coin;
 use serde::Serialize;
 
 pub mod astroport {
-    use std::{default, io::Read, str::FromStr};
+    use std::str::FromStr;
 
     use bech32::{Bech32, Hrp};
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::{to_json_vec, Addr, Binary, Coin, Decimal, Uint128};
 
     use crate::{
-        astromesh::{
-            self, module_address, sha256, FISInstruction, PoolManager, ACTION_VM_INVOKE,
-            PLANE_COSMOS, PLANE_WASM,
-        },
+        astromesh::{module_address, FISInstruction, PoolManager, ACTION_VM_INVOKE, PLANE_WASM},
         wasm::MsgExecuteContract,
     };
 

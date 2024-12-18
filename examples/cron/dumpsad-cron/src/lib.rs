@@ -1,4 +1,4 @@
-use astromesh::{FISInstruction, OracleEntries, PoolManager, QueryDenomLinkResponse};
+use astromesh::{FISInstruction, PoolManager};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
@@ -14,11 +14,6 @@ mod evm;
 mod svm;
 mod test;
 mod wasm;
-
-const GRADUATE_THRESHOLD_USD: &Uint128 = &Uint128::new(100_000u128);
-const SOL_PRECISION_MULTIPLIER: &Uint128 = &Uint128::new(1_000_000_000u128);
-const USDT_DECIMALS: u32 = 6;
-const PYTH_PRICE_DECIMALS: u32 = 8;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -94,7 +89,7 @@ pub struct CronMsg {
 }
 
 #[entry_point]
-pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cron_msg = from_json::<CronMsg>(msg.msg)?;
 
     let event_inputs = &msg.fis_input.get(0).unwrap().data;
@@ -152,8 +147,10 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 contract_sequence: contract_sequence.clone(),
             }),
             _ => {
-                _deps.api.debug(format!("unknown vm: {}, continue", vm).as_str());
-                continue
+                _deps
+                    .api
+                    .debug(format!("unknown vm: {}, continue", vm).as_str());
+                continue;
             }
         };
 

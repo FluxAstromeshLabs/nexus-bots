@@ -1,6 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, DenomMetadata, Int128, Int64, Uint128, Uint64};
-use serde::{Deserialize, Serialize};
+use cosmwasm_std::{Binary, Coin, DenomMetadata, Int64, Uint128, Uint64};
 use sha2::{Digest, Sha256};
 // use tiny_keccak::{Hasher, Keccak};
 
@@ -45,33 +44,6 @@ impl MsgAstroTransfer {
 pub struct InitialMint {
     pub address: String,
     pub amount: Uint128,
-}
-
-#[cw_serde]
-pub struct MsgCreateBankDenom {
-    #[serde(rename = "@type")]
-    pub ty: String,
-    pub sender: String,
-    pub metadata: DenomMetadata,
-    pub minter: String,
-    pub initial_mints: Vec<InitialMint>,
-}
-
-impl MsgCreateBankDenom {
-    pub fn new(
-        sender: String,
-        metadata: DenomMetadata,
-        minter: String,
-        initial_mints: Vec<InitialMint>,
-    ) -> Self {
-        MsgCreateBankDenom {
-            ty: "/flux.astromesh.v1beta1.MsgCreateBankDenom".to_string(),
-            sender,
-            metadata,
-            minter,
-            initial_mints,
-        }
-    }
 }
 
 #[cw_serde]
