@@ -12,13 +12,13 @@ pub struct BondingCurve {
 
 impl BondingCurve {
     pub const PRECISION_MULTIPLIER: Uint128 = Uint128::new(1_000_000_000u128);
-    const DEFAULT_A: Uint128 = Uint128::new(1073000191 * 1_000_000_000u128);
-    const DEFAULT_B: Uint128 = Uint128::new(32190005730 * 1_000_000_000u128);
+    const DEFAULT_MEME_LIMIT: Uint128 = Uint128::new(1073000191 * 1_000_000_000u128);
+    const DEFAULT_SOL_LIMIT: Uint128 = Uint128::new(32190005730 * 1_000_000_000u128);
 
     pub fn default(x: Uint128, y: Uint128) -> Self {
         BondingCurve {
-            a: Self::DEFAULT_A,
-            b: Self::DEFAULT_B,
+            a: Self::DEFAULT_MEME_LIMIT,
+            b: Self::DEFAULT_SOL_LIMIT,
             x,
             y,
         }

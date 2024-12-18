@@ -1,15 +1,11 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, DenomMetadata, Int128, Uint128, Uint64};
+use cosmwasm_std::{Binary, Coin, DenomMetadata, Uint128, Uint64};
 use sha2::{Digest, Sha256};
 use tiny_keccak::{Hasher, Keccak};
 
 pub const PLANE_COSMOS: &str = "COSMOS";
 
 pub const ACTION_COSMOS_INVOKE: &str = "COSMOS_INVOKE";
-
-pub const QUERY_ACTION_COSMOS_QUERY: &str = "COSMOS_QUERY";
-pub const QUERY_ACTION_COSMOS_BANK_BALANCE: &str = "COSMOS_BANK_BALANCE";
-pub const QUERY_ACTION_COSMOS_KVSTORE: &str = "COSMOS_KVSTORE";
 
 #[cw_serde]
 pub struct MsgAstroTransfer {
