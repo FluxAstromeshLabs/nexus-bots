@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, Int64, Uint64};
+use cosmwasm_std::{Binary, Coin, Int64};
 
 #[cw_serde]
 pub struct CommissionConfig {

@@ -1,26 +1,22 @@
 use astromesh::{
-    keccak256, sha256, AccountResponse, FISInput, FISInstruction, InitialMint, MsgAstroTransfer,
-    MsgCreateBankDenom, NexusAction, PLANE_COSMOS, QUERY_ACTION_COSMOS_BANK_BALANCE,
-    QUERY_ACTION_COSMOS_KVSTORE, QUERY_ACTION_COSMOS_QUERY,
+    keccak256, AccountResponse, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, NexusAction, ACTION_COSMOS_INVOKE, PLANE_COSMOS 
 };
-use bech32::{Bech32, Bech32m, Hrp};
+use bech32::{Bech32, Hrp};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, to_json_string, to_json_vec, BankMsg, Binary, Coin,
-    Decimal, DenomMetadata, DenomUnit, Deps, DepsMut, Env, HexBinary, Int128, MessageInfo,
-    Response, StdError, StdResult, Uint128, Uint64,
+    entry_point, from_json, to_json_binary, to_json_string, to_json_vec, Binary, Coin,
+    DenomMetadata, DenomUnit, Deps, DepsMut, Env, HexBinary, MessageInfo,
+    Response, StdError, StdResult, Uint128, 
 };
 use curve::BondingCurve;
 use events::{CreateTokenEvent, GraduateEvent, TradeTokenEvent};
 use interpool::{CommissionConfig, MsgCreatePool, MsgUpdatePool, QueryPoolResponse};
+use core::str;
 use std::vec::Vec;
 mod astromesh;
 mod curve;
 mod events;
 mod interpool;
-mod strategy;
-mod svm;
-mod test;
 
 const PERCENTAGE_BPS: u128 = 10_000;
 const DEFAULT_QUOTE_DENOM: &str = "sol";
@@ -73,7 +69,7 @@ pub struct StrategyOutput {
 }
 
 fn handle_create_token(
-    deps: Deps,
+    _deps: Deps,
     env: Env,
     name: String,
     symbol: String,
@@ -156,20 +152,20 @@ fn handle_create_token(
     Ok(StrategyOutput {
         instructions: vec![
             FISInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_INVOKE".to_string(),
+                plane: PLANE_COSMOS.to_string(),
+                action: ACTION_COSMOS_INVOKE.to_string(),
                 address: "".to_string(),
                 msg: to_json_vec(&create_pool_msg)?,
             },
             FISInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_INVOKE".to_string(),
+                plane: PLANE_COSMOS.to_string(),
+                action: ACTION_COSMOS_INVOKE.to_string(),
                 address: "".to_string(),
                 msg: to_json_vec(&update_pool_msg)?,
             },
             FISInstruction {
-                plane: "COSMOS".to_string(),
-                action: "COSMOS_INVOKE".to_string(),
+                plane: PLANE_COSMOS.to_string(),
+                action: ACTION_COSMOS_INVOKE.to_string(),
                 address: "".to_string(),
                 msg: to_json_vec(&create_denom_msg)?,
             },
@@ -257,7 +253,7 @@ fn handle_buy(
     // send quote to vault
     let trader_send_quote = FISInstruction {
         plane: PLANE_COSMOS.to_string(),
-        action: "COSMOS_INVOKE".to_string(),
+        action: ACTION_COSMOS_INVOKE.to_string(),
         address: "".to_string(),
         msg: to_json_vec(&MsgAstroTransfer::new(
             trader.to_string(),
@@ -278,7 +274,7 @@ fn handle_buy(
     };
     let pool_send_meme = FISInstruction {
         plane: PLANE_COSMOS.to_string(),
-        action: "COSMOS_INVOKE".to_string(),
+        action: ACTION_COSMOS_INVOKE.to_string(),
         address: "".to_string(),
         msg: to_json_vec(&MsgAstroTransfer::new(
             pool_address.clone(),
@@ -314,8 +310,8 @@ fn handle_buy(
         );
 
         instructions.push(FISInstruction {
-            plane: "COSMOS".to_string(),
-            action: "COSMOS_INVOKE".to_string(),
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
             address: "".to_string(),
             msg: to_json_vec(&update_pool_msg)?,
         });
@@ -328,7 +324,7 @@ fn handle_buy(
                 meme_denom: meme_denom.clone(),
                 meme_amount: meme_amount - received_amount,
                 sol_amount: sol_amount + amount,
-                vm: pool_res.pool.input_blob.unwrap().to_string(),
+                vm: str::from_utf8(pool_res.pool.input_blob.unwrap().as_slice()).unwrap().to_string(),
             })?,
         });
     }
@@ -341,7 +337,7 @@ fn handle_buy(
 }
 
 fn handle_sell(
-    deps: Deps,
+    _deps: Deps,
     env: Env,
     meme_denom: String,
     amount: Uint128,
@@ -388,7 +384,7 @@ fn handle_sell(
     // Transfer instructions
     let trader_send_meme = FISInstruction {
         plane: PLANE_COSMOS.to_string(),
-        action: "COSMOS_INVOKE".to_string(),
+        action: ACTION_COSMOS_INVOKE.to_string(),
         address: "".to_string(),
         msg: to_json_vec(&MsgAstroTransfer::new(
             trader.to_string(),
@@ -408,7 +404,7 @@ fn handle_sell(
     };
     let pool_send_quote = FISInstruction {
         plane: PLANE_COSMOS.to_string(),
-        action: "COSMOS_INVOKE".to_string(),
+        action: ACTION_COSMOS_INVOKE.to_string(),
         address: "".to_string(),
         msg: to_json_vec(&MsgAstroTransfer::new(
             pool_address,

@@ -151,7 +151,10 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             "WASM" => Box::new(Astroport {
                 contract_sequence: contract_sequence.clone(),
             }),
-            _ => unreachable!(),
+            _ => {
+                _deps.api.debug(format!("unknown vm: {}, continue", vm).as_str());
+                continue
+            }
         };
 
         let create_pool_ixs = pool.create_pool_with_initial_liquidity(

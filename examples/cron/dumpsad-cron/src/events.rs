@@ -4,6 +4,7 @@ use cosmwasm_std::{Binary, Uint128};
 #[cw_serde]
 pub struct StrategyEvent {
     pub strategy_id: String,
+    pub op: String,
     pub topic: String,
     pub data: Binary,
 }
