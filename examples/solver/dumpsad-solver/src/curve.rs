@@ -56,7 +56,7 @@ impl BondingCurve {
         let new_x = (self.b * BondingCurve::PRECISION_MULTIPLIER) / (self.a - new_y);
         let dx = Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER + self.x - new_x;
         // Update state
-        self.x = new_x;
+        self.x -= dx;
         self.y = new_y;
 
         dx
