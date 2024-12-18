@@ -21,7 +21,7 @@ mod interpool;
 const PERCENTAGE_BPS: u128 = 10_000;
 const DEFAULT_QUOTE_DENOM: &str = "sol";
 const INITIAL_AMOUNT: &Uint128 = &Uint128::new(1_000_000_000_000_000_000);
-const MARKET_CAP_TO_GRADUATE: &Uint128 = &Uint128::new(20_000_000_000);
+const MARKET_CAP_TO_GRADUATE: &Uint128 = &Uint128::new(400_000_000_000);
 
 #[cw_serde]
 pub struct InstantiateMsg {}
