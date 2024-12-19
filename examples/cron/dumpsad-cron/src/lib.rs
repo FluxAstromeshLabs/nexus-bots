@@ -1,8 +1,7 @@
 use astromesh::{FISInstruction, PoolManager};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Uint128,
+    entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult, Uint128
 };
 use events::{GraduateEvent, StrategyEvent};
 use std::vec::Vec;
@@ -89,7 +88,7 @@ pub struct CronMsg {
 }
 
 #[entry_point]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cron_msg = from_json::<CronMsg>(msg.msg)?;
 
     let event_inputs = &msg.fis_input.get(0).unwrap().data;
@@ -122,6 +121,11 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let (mut amount_0, mut amount_1) = (sol_coin.amount, meme_coin.amount);
         let vm = graduate_event.vm;
 
+        if vm.to_uppercase().as_str() == "SVM" {
+            denom_0 = "CPozhCGVaGAcPVkxERsUYat4b7NKT9QeAR9KjNH4JpDG".to_string();
+            denom_1 = bs58::encode(HexBinary::from_hex(graduate_event.meme_vm_denom.as_str())?.as_slice()).into_string();
+        }
+
         if denom_0 > denom_1 {
             (denom_0, denom_1) = (denom_1, denom_0);
             (amount_0, amount_1) = (amount_1, amount_0);
@@ -142,7 +146,10 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             .as_str(),
         );
         let pool: Box<dyn PoolManager> = match vm.to_uppercase().as_str() {
-            "SVM" => Box::new(Raydium {}),
+            "SVM" => Box::new(Raydium {
+                svm_creator: graduate_event.svm_address,
+                open_time: env.block.time.seconds(),
+            }),
             "WASM" => Box::new(Astroport {
                 contract_sequence: contract_sequence.clone(),
             }),
