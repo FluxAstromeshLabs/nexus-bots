@@ -151,6 +151,13 @@ fn handle_create_token(
         solver_id.clone(),
     );
 
+    let transfer_target_plane = MsgAstroTransfer::new(
+        pool_address.clone(),
+        pool_address.clone(), 
+        PLANE_COSMOS.to_string(),
+        target_vm.clone(),
+        Coin::new(Uint128::one(), denom_base.clone()));
+
     Ok(StrategyOutput {
         instructions: vec![
             FISInstruction {
@@ -171,16 +178,22 @@ fn handle_create_token(
                 address: "".to_string(),
                 msg: to_json_vec(&create_denom_msg)?,
             },
+            FISInstruction {
+                plane: PLANE_COSMOS.to_string(),
+                action: ACTION_COSMOS_INVOKE.to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&transfer_target_plane)?,
+            },
         ],
         events: vec![StrategyEvent {
             topic: "create_token".to_string(),
             data: to_json_binary(&CreateTokenEvent {
-                denom: denom_base.clone(),
+                denom: denom_base,
                 name: name.clone(),
                 symbol: denom_symbol.clone(),
                 description: description.clone(),
                 pool_id: HexBinary::from(pool_id).to_string(),
-                vm: target_vm.clone(),
+                vm: target_vm,
                 logo: uri.clone(),
                 cron_id,
                 solver_id,
