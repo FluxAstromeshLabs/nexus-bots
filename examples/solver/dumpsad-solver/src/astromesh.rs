@@ -128,6 +128,13 @@ pub struct AccountResponse {
     pub account: Account,
 }
 
+#[cw_serde]
+pub struct QueryDenomLinkResponse {
+    pub dst_addr: String,
+    pub src_decimals: i32,
+    pub dst_decimals: i32,
+}
+
 pub fn keccak256(input: &[u8]) -> [u8; 32] {
     let mut hash = Keccak::v256();
     hash.update(input);

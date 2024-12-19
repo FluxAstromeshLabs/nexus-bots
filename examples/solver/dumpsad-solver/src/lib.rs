@@ -1,5 +1,5 @@
 use astromesh::{
-    keccak256, AccountResponse, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, NexusAction, ACTION_COSMOS_INVOKE, PLANE_COSMOS 
+    keccak256, AccountResponse, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, NexusAction, QueryDenomLinkResponse, ACTION_COSMOS_INVOKE, PLANE_COSMOS 
 };
 use bech32::{Bech32, Hrp};
 use cosmwasm_schema::cw_serde;
@@ -11,12 +11,14 @@ use cosmwasm_std::{
 use curve::BondingCurve;
 use events::{CreateTokenEvent, GraduateEvent, TradeTokenEvent};
 use interpool::{CommissionConfig, MsgCreatePool, MsgUpdatePool, QueryPoolResponse};
+use svm::AccountLink;
 use core::str;
 use std::vec::Vec;
 mod astromesh;
 mod curve;
 mod events;
 mod interpool;
+mod svm;
 
 const PERCENTAGE_BPS: u128 = 10_000;
 const DEFAULT_QUOTE_DENOM: &str = "sol";
@@ -316,6 +318,8 @@ fn handle_buy(
             msg: to_json_vec(&update_pool_msg)?,
         });
         
+        let pool_svm_link = from_json::<AccountLink>(fis_input.get(1).unwrap().data.get(0).unwrap())?;
+        let meme_denom_link = from_json::<QueryDenomLinkResponse>(fis_input.get(2).unwrap().data.get(0).unwrap())?;
         events.push(StrategyEvent {
             topic: "graduate".to_string(),
             data: to_json_binary(&GraduateEvent {
@@ -325,6 +329,8 @@ fn handle_buy(
                 meme_amount: meme_amount - received_amount,
                 sol_amount: sol_amount + amount,
                 vm: str::from_utf8(pool_res.pool.input_blob.unwrap().as_slice()).unwrap().to_string(),
+                svm_address: pool_svm_link.link.svm_addr.to_string(),
+                meme_vm_denom: meme_denom_link.dst_addr,
             })?,
         });
     }
