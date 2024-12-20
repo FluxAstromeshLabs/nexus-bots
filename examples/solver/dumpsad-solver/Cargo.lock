@@ -483,6 +483,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "curve25519-dalek",
+ "hex",
  "serde",
  "sha2",
  "time",

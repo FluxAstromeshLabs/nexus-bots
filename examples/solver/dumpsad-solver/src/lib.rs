@@ -174,11 +174,67 @@ impl PoolKey {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ModifyLiquidityParams {
+    tick_lower: i64,
+    tick_upper: i64,
+    liquidity_delta: i32,
+    salt: [u8; 32],
+}
+
+impl ModifyLiquidityParams {
+    pub fn new(tick_lower: i64, tick_upper: i64, liquidity_delta: i32, salt: [u8; 32]) -> Self {
+        Self {
+            tick_lower,
+            tick_upper,
+            liquidity_delta,
+            salt,
+        }
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut serialized = Vec::with_capacity(128);
+
+        // Adding padding for tick_lower
+        serialized.extend_from_slice(&[0u8; 24]); // padding to make it 32 bytes
+        serialized.extend_from_slice(&self.tick_lower.to_be_bytes());
+
+        // Adding padding for tick_upper
+        serialized.extend_from_slice(&[0u8; 24]); // padding to make it 32 bytes
+        serialized.extend_from_slice(&self.tick_upper.to_be_bytes());
+
+        // Adding padding for liquidity_delta
+        serialized.extend_from_slice(&[0u8; 28]); // padding to make it 32 bytes
+        serialized.extend_from_slice(&self.liquidity_delta.to_be_bytes());
+
+        // Adding padding for salt
+        serialized.extend_from_slice(&self.salt);
+
+        serialized
+    }
+}
+
 pub fn compute_sqrt_price_x96_int(price: f64) -> i128 {
     let sqrt_price = price.sqrt();
     let scale_factor: f64 = 2_f64.powi(96);
     let sqrt_price_x96_int = sqrt_price * scale_factor;
     sqrt_price_x96_int as i128
+}
+
+pub fn compute_tick(price: f64, tick_spacing: i64) -> i64 {
+    let log_price = price.ln();
+    let log_factor = 1.0001f64.ln();
+    let tick_float = log_price / log_factor;
+    let tick_int = tick_float.round() as i64;
+
+    let rounded_tick = (tick_int / tick_spacing) * tick_spacing;
+    if tick_int % tick_spacing != 0 {
+        if tick_int % tick_spacing > tick_spacing / 2 {
+            return rounded_tick + tick_spacing as i64;
+        }
+    }
+
+    rounded_tick as i64
 }
 
 pub fn compose_erc20_approve(
@@ -229,7 +285,6 @@ pub fn initilize(
         [0; 20],
     );
     let sqrt_price_x96_int = compute_sqrt_price_x96_int(price);
-
     let empty_hook_data = Binary::from_base64(
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
     )
@@ -256,64 +311,64 @@ pub fn initilize(
     })
 }
 
-// pub fn provide_liquidity(
-//     fee: u32,
-//     price: f64,
-//     sender: String,
-//     denom_0: String,
-//     denom_1: String,
-// ) -> Result<FISInstruction, StdError> {
-//     let signature: [u8; 4] = (0x568846efu32).to_be_bytes();
-//     let tick_spacing = 60;
-//     let pool_key = PoolKey::new(
-//         parse_addr(&denom_0),
-//         parse_addr(&denom_1),
-//         fee,
-//         tick_spacing,
-//         [0; 20],
-//     );
-//     let salt: [u8; 32] = [
-//         1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
-//         1, 2,
-//     ];
+pub fn provide_liquidity(
+    fee: u32,
+    price: f64,
+    sender: String,
+    denom_0: String,
+    denom_1: String,
+) -> Result<FISInstruction, StdError> {
+    let signature: [u8; 4] = (0x568846efu32).to_be_bytes();
+    let tick_spacing = 60;
+    let pool_key = PoolKey::new(
+        parse_addr(&denom_0),
+        parse_addr(&denom_1),
+        fee,
+        tick_spacing,
+        [0; 20],
+    );
+    let salt: [u8; 32] = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+        1, 2,
+    ];
 
-//     let lower_price = price * 0.8;
-//     let upper_price = price * 1.2;
+    let lower_price = price * 0.8;
+    let upper_price = price * 1.2;
 
-//     let tick_lower = compute_tick(lower_price, tick_spacing.into());
-//     let tick_upper = compute_tick(upper_price, tick_spacing.into());
+    let tick_lower = compute_tick(lower_price, tick_spacing.into());
+    let tick_upper = compute_tick(upper_price, tick_spacing.into());
 
-//     let modify_liquidity_params = ModifyLiquidityParams::new(
-//         tick_lower,
-//         tick_upper,
-//         1000000000,
-//         salt,
-//     );
-//     let empty_hook_data = Binary::from_base64(
-//         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-//     )
-//     .unwrap();
+    let modify_liquidity_params = ModifyLiquidityParams::new(
+        tick_lower,
+        tick_upper,
+        1000000000,
+        salt,
+    );
+    let empty_hook_data = Binary::from_base64(
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+    )
+    .unwrap();
 
-//     let mut calldata = Vec::new();
-//     calldata.extend(signature);
-//     calldata.extend(pool_key.serialize());
-//     calldata.extend(modify_liquidity_params.serialize());
-//     calldata.extend(empty_hook_data.iter());
+    let mut calldata = Vec::new();
+    calldata.extend(signature);
+    calldata.extend(pool_key.serialize());
+    calldata.extend(modify_liquidity_params.serialize());
+    calldata.extend(empty_hook_data.iter());
 
-//     let msg = MsgExecuteContract::new(
-//         sender.to_string(),
-//         Binary::from(hex::decode(POOL_ACTION).unwrap()),
-//         Binary::from(calldata),
-//         Binary::from(vec![]),
-//     );
+    let msg = MsgExecuteContract::new(
+        sender.to_string(),
+        Binary::from(hex::decode(POOL_ACTION).unwrap()),
+        Binary::from(calldata),
+        Binary::from(vec![]),
+    );
 
-//     Ok(FISInstruction {
-//         plane: PLANE_EVM.to_string(),
-//         action: ACTION_VM_INVOKE.to_string(),
-//         address: "".to_string(),
-//         msg: to_json_vec(&msg).unwrap(),
-//     })
-// }
+    Ok(FISInstruction {
+        plane: PLANE_EVM.to_string(),
+        action: ACTION_VM_INVOKE.to_string(),
+        address: "".to_string(),
+        msg: to_json_vec(&msg).unwrap(),
+    })
+}
 
 fn handle_create_token(
     deps: Deps,
@@ -697,10 +752,11 @@ fn handle_sell(
 
 pub fn handle_create_pool(
     deps: Deps,
+    env: Env,
     pool_address: String,
     denom_2: String,
 ) -> StdResult<Vec<FISInstruction>> {
-    let sender = pool_address.clone();
+    let sender = env.contract.address.to_string();
 
     let mut denom_0 = "eef74ab95099c8d1ad8de02ba6bdab9cbc9dbf93".to_string(); // sol
     let mut amount_0: u128 = 2000000000;
@@ -722,9 +778,6 @@ pub fn handle_create_pool(
         (denom_0, denom_1) = (denom_1, denom_0);
         (amount_0, amount_1) = (amount_1, amount_0);
     }
-
-    let fee = 3000;
-    let price = amount_1 as f64 / amount_0 as f64;
 
     let mut instructions = vec![];
     instructions.extend(vec![
@@ -760,18 +813,22 @@ pub fn handle_create_pool(
         },
     ]);
 
+    let allowance: Uint256 = Uint256::from(100000000000000000u128);
+    let fee = 3000;
+    let price = amount_1 as f64 / amount_0 as f64;
+
     instructions.push(compose_erc20_approve(
-        &pool_address.to_string(),
+        &sender.to_string(),
         &parse_addr(&denom_1),
         &parse_addr(&POOL_ACTION),
-        amount_1.into(),
+        allowance.into(),
     )?);
 
     instructions.push(compose_erc20_approve(
-        &pool_address.to_string(),
+        &sender.to_string(),
         &parse_addr(&denom_0),
         &parse_addr(&POOL_ACTION),
-        amount_0.into(),
+        allowance.into(),
     )?);
 
     instructions.push(
@@ -840,7 +897,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         NexusAction::CreatePool {
             pool_address,
             denom_1,
-        } => handle_create_pool(deps, pool_address, denom_1),
+        } => handle_create_pool(deps, env, pool_address, denom_1),
     }?;
 
     Ok(to_json_binary(&StrategyOutput { instructions }).unwrap())
