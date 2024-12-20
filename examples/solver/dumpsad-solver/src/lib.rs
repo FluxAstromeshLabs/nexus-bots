@@ -705,7 +705,7 @@ pub fn handle_create_pool(
     let mut denom_0 = "eef74ab95099c8d1ad8de02ba6bdab9cbc9dbf93".to_string(); // sol
     let mut amount_0: u128 = 2000000000;
 
-    let mut denom_1 = denom_2;
+    let mut denom_1 = denom_2; // meme
     let mut amount_1: u128 = 932937488062500000;
 
     let quote_coin = Coin {
@@ -763,6 +763,13 @@ pub fn handle_create_pool(
     instructions.push(compose_erc20_approve(
         &pool_address.to_string(),
         &parse_addr(&denom_1),
+        &parse_addr(&POOL_ACTION),
+        amount_1.into(),
+    )?);
+
+    instructions.push(compose_erc20_approve(
+        &pool_address.to_string(),
+        &parse_addr(&denom_0),
         &parse_addr(&POOL_ACTION),
         amount_0.into(),
     )?);
