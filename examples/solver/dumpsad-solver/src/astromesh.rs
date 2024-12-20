@@ -1,5 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, Coin, DenomMetadata, Uint128, Uint64};
+use rlp::RlpStream;
 use sha2::{Digest, Sha256};
 use tiny_keccak::{Hasher, Keccak};
 
@@ -143,11 +144,10 @@ pub fn keccak256(input: &[u8]) -> [u8; 32] {
     output
 }
 
-pub fn sha256(input: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(input);
-    let result = hasher.finalize();
-    let mut hash = [0u8; 32];
-    hash.copy_from_slice(&result);
-    hash
+pub fn denom_address(creator_addr: &[u8], sequence: u64) -> Vec<u8> {
+    let mut stream = RlpStream::new_list(2); // Specify the list size
+    stream.append(&creator_addr);
+    stream.append(&sequence);
+    let encoded_list = stream.out();
+    keccak256(encoded_list.to_vec().as_slice())[12..].to_vec()
 }

@@ -278,7 +278,10 @@ pub fn bytes_are_curve_point<T: AsRef<[u8]>>(_bytes: T) -> bool {
 pub mod raydium {
     use cosmwasm_std::{to_json_vec, Binary, Uint128};
 
-    use crate::{astromesh::{FISInstruction, PoolManager, ACTION_VM_INVOKE, PLANE_SVM}, svm::{ASSOCIATED_TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID}};
+    use crate::{
+        astromesh::{FISInstruction, PoolManager, ACTION_VM_INVOKE, PLANE_SVM},
+        svm::{ASSOCIATED_TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID},
+    };
 
     use super::{
         InstructionAccountMeta, InstructionMeta, Pubkey, TransactionBuilder, AMM_CONFIG_ACCOUNT,
@@ -488,7 +491,8 @@ pub mod raydium {
             let sender_svm_bz = Pubkey::from_string(&self.svm_creator).unwrap();
             let denom_0_bz = Pubkey::from_string(&denom_0.to_string()).unwrap();
             let denom_1_bz = Pubkey::from_string(&denom_1.to_string()).unwrap();
-            let spl_token_2022_program = Pubkey::from_string(&SPL_TOKEN2022_PROGRAM_ID.to_string()).unwrap();
+            let spl_token_2022_program =
+                Pubkey::from_string(&SPL_TOKEN2022_PROGRAM_ID.to_string()).unwrap();
             let spl_token_program = Pubkey::from_string(&SPL_TOKEN_PROGRAM_ID.to_string()).unwrap();
             let ata_program =
                 Pubkey::from_string(&ASSOCIATED_TOKEN_PROGRAM_ID.to_string()).unwrap();

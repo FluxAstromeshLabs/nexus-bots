@@ -1,29 +1,41 @@
 use astromesh::{
-    keccak256, AccountResponse, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, NexusAction, QueryDenomLinkResponse, ACTION_COSMOS_INVOKE, PLANE_COSMOS 
+    denom_address, keccak256, AccountResponse, FISInput, FISInstruction, InitialMint,
+    MsgAstroTransfer, MsgCreateBankDenom, NexusAction, ACTION_COSMOS_INVOKE, PLANE_COSMOS,
 };
 use bech32::{Bech32, Hrp};
+use core::str;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_string, to_json_vec, Binary, Coin,
-    DenomMetadata, DenomUnit, Deps, DepsMut, Env, HexBinary, MessageInfo,
-    Response, StdError, StdResult, Uint128, 
+    DenomMetadata, DenomUnit, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
+    StdResult, Uint128,
 };
 use curve::BondingCurve;
 use events::{CreateTokenEvent, GraduateEvent, TradeTokenEvent};
-use interpool::{CommissionConfig, MsgCreatePool, MsgUpdatePool, QueryPoolResponse};
-use svm::AccountLink;
-use core::str;
+use interpool::{
+    CommissionConfig, DumpsadPoolState, MsgCreatePool, MsgUpdatePool, QueryPoolResponse,
+};
 use std::vec::Vec;
+use svm::{AccountLink, Pubkey};
 mod astromesh;
 mod curve;
 mod events;
 mod interpool;
 mod svm;
+mod test;
 
 const PERCENTAGE_BPS: u128 = 10_000;
 const DEFAULT_QUOTE_DENOM: &str = "sol";
 const INITIAL_AMOUNT: &Uint128 = &Uint128::new(1_000_000_000_000_000_000);
 const MARKET_CAP_TO_GRADUATE: &Uint128 = &Uint128::new(400_000_000_000);
+const POOL_AUTHORITY: &[u8] = &[
+    111, 10, 197, 241, 216, 79, 240, 92, 96, 219, 139, 173, 223, 107, 146, 221, 199, 188, 78, 138,
+    204, 94, 40, 161, 156, 98, 22, 62, 231, 66, 234, 135,
+];
+const MINT_AUTHORITY: &[u8] = &[
+    100, 170, 141, 184, 255, 121, 69, 170, 40, 163, 23, 92, 197, 250, 32, 167, 37, 202, 129, 8, 15,
+    185, 169, 178, 17, 51, 230, 69, 149, 173, 160, 138,
+];
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -99,9 +111,29 @@ fn handle_create_token(
     // TODO: Check cosmwasm std Addr, it needs callback/FFI
     let pool_address = bech32::encode::<Bech32>(Hrp::parse("lux").unwrap(), pool_id)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
+    let (pool_svm_address, _) =
+        Pubkey::find_program_address(&[pool_id], &Pubkey::from_slice(POOL_AUTHORITY).unwrap())
+            .unwrap();
 
     let denom_base = format!("astromesh/{}/{}", creator.clone(), symbol);
     let denom_symbol = symbol;
+    let vm_denom_addr = match target_vm.as_str() {
+        "SVM" => {
+            let denom_address = denom_address(pool_id, 0u64);
+            let (svm_denom, _) = Pubkey::find_program_address(
+                &[denom_address.as_slice()],
+                &Pubkey::from_slice(MINT_AUTHORITY).unwrap(),
+            )
+            .unwrap();
+            &svm_denom.to_string()
+        }
+        _ => &denom_base.clone(),
+    };
+    let pool_state = DumpsadPoolState {
+        vm: target_vm.clone(),
+        pool_svm_address: pool_svm_address.to_string(),
+        meme_denom_link: vm_denom_addr.clone(),
+    };
 
     // create pool
     let create_pool_msg = MsgCreatePool::new(
@@ -143,7 +175,7 @@ fn handle_create_token(
     let update_pool_msg = MsgUpdatePool::new(
         creator.clone(),
         HexBinary::from(pool_id).to_string(),
-        target_vm.as_bytes().to_vec(),
+        to_json_vec(&pool_state)?,
         vec![],
         false,
         vec![],
@@ -153,10 +185,11 @@ fn handle_create_token(
 
     let transfer_target_plane = MsgAstroTransfer::new(
         pool_address.clone(),
-        pool_address.clone(), 
+        pool_address.clone(),
         PLANE_COSMOS.to_string(),
         target_vm.clone(),
-        Coin::new(Uint128::one(), denom_base.clone()));
+        Coin::new(Uint128::one(), denom_base.clone()),
+    );
 
     Ok(StrategyOutput {
         instructions: vec![
@@ -311,7 +344,8 @@ fn handle_buy(
         })?,
     }];
 
-    let is_graduate = (post_price * INITIAL_AMOUNT / BondingCurve::PRECISION_MULTIPLIER).ge(MARKET_CAP_TO_GRADUATE);
+    let is_graduate = (post_price * INITIAL_AMOUNT / BondingCurve::PRECISION_MULTIPLIER)
+        .ge(MARKET_CAP_TO_GRADUATE);
     if is_graduate {
         let update_pool_msg = MsgUpdatePool::new(
             pool_address.clone(),
@@ -330,9 +364,8 @@ fn handle_buy(
             address: "".to_string(),
             msg: to_json_vec(&update_pool_msg)?,
         });
-        
-        let pool_svm_link = from_json::<AccountLink>(fis_input.get(1).unwrap().data.get(0).unwrap())?;
-        let meme_denom_link = from_json::<QueryDenomLinkResponse>(fis_input.get(2).unwrap().data.get(0).unwrap())?;
+
+        let pool_state = from_json::<DumpsadPoolState>(pool_res.pool.input_blob.unwrap())?;
         events.push(StrategyEvent {
             topic: "graduate".to_string(),
             data: to_json_binary(&GraduateEvent {
@@ -341,9 +374,9 @@ fn handle_buy(
                 meme_denom: meme_denom.clone(),
                 meme_amount: meme_amount - received_amount,
                 sol_amount: sol_amount + amount,
-                vm: str::from_utf8(pool_res.pool.input_blob.unwrap().as_slice()).unwrap().to_string(),
-                svm_address: pool_svm_link.link.svm_addr.to_string(),
-                meme_vm_denom: meme_denom_link.dst_addr,
+                vm: pool_state.vm,
+                pool_svm_address: pool_state.pool_svm_address,
+                meme_denom_link: pool_state.meme_denom_link,
             })?,
         });
     }

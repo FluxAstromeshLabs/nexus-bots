@@ -8,6 +8,7 @@ pub const PLANE_EVM: &str = "EVM";
 pub const PLANE_SVM: &str = "SVM";
 pub const PLANE_WASM: &str = "WASM";
 
+pub const ACTION_COSMOS_INVOKE: &str = "COSMOS_INVOKE";
 pub const ACTION_VM_INVOKE: &str = "VM_INVOKE";
 
 #[cw_serde]
