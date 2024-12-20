@@ -5,6 +5,7 @@ use tiny_keccak::{Hasher, Keccak};
 
 pub const PLANE_COSMOS: &str = "COSMOS";
 pub const PLANE_SVM: &str = "SVM";
+pub const PLANE_EVM: &str = "EVM";
 
 pub const QUERY_ACTION_COSMOS_QUERY: &str = "COSMOS_QUERY";
 pub const QUERY_ACTION_COSMOS_BANK_BALANCE: &str = "COSMOS_BANK_BALANCE";
@@ -107,6 +108,10 @@ pub enum NexusAction {
         amount: Uint128,
         slippage: Uint128,
         pool_address: String,
+    },
+    CreatePool {
+        pool_address: String,
+        denom_1: String,
     },
 }
 
