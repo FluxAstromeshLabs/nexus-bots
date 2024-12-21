@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Binary, Coin, DenomMetadata, Int64, Uint128, Uint64};
+use cosmwasm_std::{Binary, Coin, Int64, Uint128, Uint64};
 use sha2::{Digest, Sha256};
 // use tiny_keccak::{Hasher, Keccak};
 
@@ -8,6 +8,7 @@ pub const PLANE_EVM: &str = "EVM";
 pub const PLANE_SVM: &str = "SVM";
 pub const PLANE_WASM: &str = "WASM";
 
+pub const ACTION_COSMOS_INVOKE: &str = "COSMOS_INVOKE";
 pub const ACTION_VM_INVOKE: &str = "VM_INVOKE";
 
 #[cw_serde]
@@ -88,15 +89,6 @@ pub struct OracleEntry {
 #[cw_serde]
 pub struct OracleEntries {
     pub entries: Vec<OracleEntry>,
-}
-
-pub fn sha256(input: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(input);
-    let result = hasher.finalize();
-    let mut hash = [0u8; 32];
-    hash.copy_from_slice(&result);
-    hash
 }
 
 pub fn module_address(typ: &str, key: &[u8]) -> Vec<u8> {

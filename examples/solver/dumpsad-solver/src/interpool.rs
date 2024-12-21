@@ -105,3 +105,10 @@ pub struct CommissionFees {
 pub struct QueryPoolResponse {
     pub pool: InterPool,
 }
+
+#[cw_serde]
+pub struct DumpsadPoolState {
+    pub vm: String,
+    pub pool_svm_address: String,
+    pub meme_denom_link: String,
+}
