@@ -95,6 +95,8 @@ fn handle_create_token(
     fis_input: &Vec<FISInput>,
 ) -> StdResult<StrategyOutput> {
     let creator = env.contract.address.to_string();
+    let target_vm = target_vm.to_uppercase();
+
     let acc_info = from_json::<AccountResponse>(fis_input.get(0).unwrap().data.get(0).unwrap())?;
     let (_, creator_bz) =
         bech32::decode(&creator).map_err(|e| StdError::generic_err(e.to_string()))?;
@@ -127,8 +129,13 @@ fn handle_create_token(
             .unwrap();
             &svm_denom.to_string()
         }
+        "EVM" => {
+            let denom_address = denom_address(pool_id, 0u64);
+            &HexBinary::from(denom_address).to_string()
+        }
         _ => &denom_base.clone(),
     };
+
     let pool_state = DumpsadPoolState {
         vm: target_vm.clone(),
         pool_svm_address: pool_svm_address.to_string(),
@@ -183,41 +190,45 @@ fn handle_create_token(
         solver_id.clone(),
     );
 
-    let transfer_target_plane = MsgAstroTransfer::new(
-        pool_address.clone(),
-        pool_address.clone(),
-        PLANE_COSMOS.to_string(),
-        target_vm.clone(),
-        Coin::new(Uint128::one(), denom_base.clone()),
-    );
+    let mut instructions = vec![
+        FISInstruction {
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&create_pool_msg)?,
+        },
+        FISInstruction {
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&update_pool_msg)?,
+        },
+        FISInstruction {
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&create_denom_msg)?,
+        },
+    ];
+
+    if target_vm.as_str() == "EVM" || target_vm.as_str() == "SVM" {
+        let transfer_target_plane = MsgAstroTransfer::new(
+            pool_address.clone(),
+            pool_address.clone(),
+            PLANE_COSMOS.to_string(),
+            target_vm.clone(),
+            Coin::new(Uint128::zero(), denom_base.clone()),
+        );
+        instructions.push(FISInstruction {
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&transfer_target_plane)?,
+        });
+    }
 
     Ok(StrategyOutput {
-        instructions: vec![
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&create_pool_msg)?,
-            },
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&update_pool_msg)?,
-            },
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&create_denom_msg)?,
-            },
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&transfer_target_plane)?,
-            },
-        ],
+        instructions,
         events: vec![StrategyEvent {
             topic: "create_token".to_string(),
             data: to_json_binary(&CreateTokenEvent {
