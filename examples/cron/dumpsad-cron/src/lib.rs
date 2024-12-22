@@ -1,6 +1,6 @@
 use astromesh::{
     FISInstruction, MsgAstroTransfer, PoolManager, ACTION_COSMOS_INVOKE, ACTION_VM_INVOKE,
-    PLANE_COSMOS, PLANE_SVM,
+    PLANE_COSMOS, PLANE_SVM, PLANE_EVM,
 };
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
@@ -11,6 +11,7 @@ use events::{GraduateEvent, StrategyEvent};
 use std::vec::Vec;
 use svm::raydium::Raydium;
 use wasm::astroport::Astroport;
+use evm::uniswap::Uniswap;
 mod astromesh;
 mod events;
 mod evm;
@@ -92,7 +93,7 @@ pub struct CronMsg {
 }
 
 #[entry_point]
-pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cron_msg = from_json::<CronMsg>(msg.msg)?;
 
     let event_inputs = &msg.fis_input.get(0).unwrap().data;
@@ -113,7 +114,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         let vm_str = vm.to_uppercase();
         if vm_str.as_str() != "EVM" && vm_str.as_str() != "SVM" && vm_str.as_str() != "WASM" {
-            _deps
+            deps
                 .api
                 .debug(format!("unsupported plane: {}", vm_str).as_str());
             continue;
@@ -125,7 +126,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         };
 
         let meme_coin = Coin {
-            denom: graduate_event.meme_denom,
+            denom: graduate_event.meme_denom.clone(),
             amount: graduate_event.meme_amount,
         };
 
@@ -134,41 +135,79 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let (mut denom_0, mut denom_1) = (sol_coin.denom, meme_coin.denom);
         let (mut amount_0, mut amount_1) = (sol_coin.amount, meme_coin.amount);
 
-        instructions.extend(vec![
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&MsgAstroTransfer::new(
-                    pool_address.to_string(),
-                    pool_address.to_string(),
-                    PLANE_COSMOS.to_string(),
-                    PLANE_SVM.to_string(),
-                    Coin {
-                        denom: denom_0.clone(),
-                        amount: amount_0,
-                    },
-                ))?,
-            },
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&MsgAstroTransfer::new(
-                    pool_address.to_string(),
-                    pool_address.to_string(),
-                    PLANE_COSMOS.to_string(),
-                    PLANE_SVM.to_string(),
-                    Coin {
-                        denom: denom_1.clone(),
-                        amount: amount_1,
-                    },
-                ))?,
-            },
-        ]);
-
         if vm.to_uppercase().as_str() == "SVM" {
+            instructions.extend(vec![
+                FISInstruction {
+                    plane: PLANE_COSMOS.to_string(),
+                    action: ACTION_COSMOS_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgAstroTransfer::new(
+                        pool_address.to_string(),
+                        pool_address.to_string(),
+                        PLANE_COSMOS.to_string(),
+                        PLANE_SVM.to_string(),
+                        Coin {
+                            denom: denom_0.clone(),
+                            amount: amount_0,
+                        },
+                    ))?,
+                },
+                FISInstruction {
+                    plane: PLANE_COSMOS.to_string(),
+                    action: ACTION_COSMOS_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgAstroTransfer::new(
+                        pool_address.to_string(),
+                        pool_address.to_string(),
+                        PLANE_COSMOS.to_string(),
+                        PLANE_SVM.to_string(),
+                        Coin {
+                            denom: denom_1.clone(),
+                            amount: amount_1,
+                        },
+                    ))?,
+                },
+            ]);
+
             denom_0 = "CPozhCGVaGAcPVkxERsUYat4b7NKT9QeAR9KjNH4JpDG".to_string();
+            denom_1 = graduate_event.meme_denom_link.clone();
+        }
+
+        if vm.to_uppercase().as_str() == "EVM" {
+            instructions.extend(vec![
+                FISInstruction {
+                    plane: PLANE_COSMOS.to_string(),
+                    action: ACTION_COSMOS_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgAstroTransfer::new(
+                        pool_address.to_string(),
+                        pool_address.to_string(),
+                        PLANE_COSMOS.to_string(),
+                        PLANE_EVM.to_string(),
+                        Coin {
+                            denom: denom_0.clone(),
+                            amount: amount_0,
+                        },
+                    ))?,
+                },
+                FISInstruction {
+                    plane: PLANE_COSMOS.to_string(),
+                    action: ACTION_COSMOS_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgAstroTransfer::new(
+                        pool_address.to_string(),
+                        pool_address.to_string(),
+                        PLANE_COSMOS.to_string(),
+                        PLANE_EVM.to_string(),
+                        Coin {
+                            denom: denom_1.clone(),
+                            amount: amount_1,
+                        },
+                    ))?,
+                },
+            ]);
+
+            denom_0 = "eef74ab95099c8d1ad8de02ba6bdab9cbc9dbf93".to_string();
             denom_1 = graduate_event.meme_denom_link;
         }
 
@@ -179,15 +218,28 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         // 1. pay creator 0.5 SOL, get 1.5 SOL as fee
         // TODO: Generate fee transfers here
-        // 2. create pool in target vm
-        _deps.api.debug(
+        let fee_rate = 0.03;
+        let fee = (amount_0.u128() as f64 * fee_rate).round() as u32;
+        let price = amount_0.u128() as f64 / amount_1.u128() as f64;
+
+        deps.api.debug(
             format!(
-                "graduate: vm: {}, coin0:{}{}, coin1:{}{}",
+                "graduate: creator: {}, fee: {}, price: {}",
+                env.contract.address.to_string(), fee, price
+            )
+            .as_str(),
+        );
+
+        // 2. create pool in target vm
+        deps.api.debug(
+            format!(
+                "graduate: vm: {}, coin0:{}{}, coin1:{}{}, meme{}",
                 vm,
                 amount_0.u128(),
                 denom_0.to_string(),
                 amount_1.u128(),
                 denom_1.to_string(),
+                graduate_event.meme_denom.to_string()
             )
             .as_str(),
         );
@@ -199,8 +251,14 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             "WASM" => Box::new(Astroport {
                 contract_sequence: contract_sequence.clone(),
             }),
+            "EVM" => Box::new(Uniswap {
+                fee: fee,
+                price: price,
+                creator: env.contract.address.to_string(),
+                meme_denom: graduate_event.meme_denom,
+            }),
             _ => {
-                _deps
+                deps
                     .api
                     .debug(format!("unknown vm: {}, continue", vm).as_str());
                 continue;

@@ -83,7 +83,7 @@ pub struct StrategyOutput {
 }
 
 fn handle_create_token(
-    _deps: Deps,
+    deps: Deps,
     env: Env,
     name: String,
     symbol: String,
@@ -116,6 +116,8 @@ fn handle_create_token(
     let (pool_svm_address, _) =
         Pubkey::find_program_address(&[pool_id], &Pubkey::from_slice(POOL_AUTHORITY).unwrap())
             .unwrap();
+
+    deps.api.debug(&format!("pool_addr: {}", pool_address));
 
     let denom_base = format!("astromesh/{}/{}", creator.clone(), symbol);
     let denom_symbol = symbol;
