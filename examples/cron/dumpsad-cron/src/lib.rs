@@ -5,7 +5,7 @@ use astromesh::{
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env,
-    HexBinary, MessageInfo, Response, StdError, StdResult, Uint128,
+    MessageInfo, Response, StdResult, Uint128,
 };
 use events::{GraduateEvent, StrategyEvent};
 use std::vec::Vec;
@@ -134,40 +134,40 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let (mut denom_0, mut denom_1) = (sol_coin.denom, meme_coin.denom);
         let (mut amount_0, mut amount_1) = (sol_coin.amount, meme_coin.amount);
 
-        instructions.extend(vec![
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&MsgAstroTransfer::new(
-                    pool_address.to_string(),
-                    pool_address.to_string(),
-                    PLANE_COSMOS.to_string(),
-                    PLANE_SVM.to_string(),
-                    Coin {
-                        denom: denom_0.clone(),
-                        amount: amount_0,
-                    },
-                ))?,
-            },
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&MsgAstroTransfer::new(
-                    pool_address.to_string(),
-                    pool_address.to_string(),
-                    PLANE_COSMOS.to_string(),
-                    PLANE_SVM.to_string(),
-                    Coin {
-                        denom: denom_1.clone(),
-                        amount: amount_1,
-                    },
-                ))?,
-            },
-        ]);
+        if vm_str.as_str() == "SVM" {
+            instructions.extend(vec![
+                FISInstruction {
+                    plane: PLANE_COSMOS.to_string(),
+                    action: ACTION_COSMOS_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgAstroTransfer::new(
+                        pool_address.to_string(),
+                        pool_address.to_string(),
+                        PLANE_COSMOS.to_string(),
+                        PLANE_SVM.to_string(),
+                        Coin {
+                            denom: denom_0.clone(),
+                            amount: amount_0,
+                        },
+                    ))?,
+                },
+                FISInstruction {
+                    plane: PLANE_COSMOS.to_string(),
+                    action: ACTION_COSMOS_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgAstroTransfer::new(
+                        pool_address.to_string(),
+                        pool_address.to_string(),
+                        PLANE_COSMOS.to_string(),
+                        PLANE_SVM.to_string(),
+                        Coin {
+                            denom: denom_1.clone(),
+                            amount: amount_1,
+                        },
+                    ))?,
+                },
+            ]);
 
-        if vm.to_uppercase().as_str() == "SVM" {
             denom_0 = "CPozhCGVaGAcPVkxERsUYat4b7NKT9QeAR9KjNH4JpDG".to_string();
             denom_1 = graduate_event.meme_denom_link;
         }
