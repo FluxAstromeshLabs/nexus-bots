@@ -9,15 +9,15 @@ use cosmwasm_std::{
 };
 use events::{GraduateEvent, StrategyEvent};
 use std::vec::Vec;
-use svm::raydium::Raydium;
-use wasm::astroport::Astroport;
+// use svm::raydium::Raydium;
+// use wasm::astroport::Astroport;
 use evm::uniswap::Uniswap;
 mod astromesh;
 mod events;
 mod evm;
-mod svm;
+// mod svm;
 mod test;
-mod wasm;
+// mod wasm;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -218,31 +218,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         // 1. pay creator 0.5 SOL, get 1.5 SOL as fee
         // TODO: Generate fee transfers here
-        let fee_rate = 0.03;
-        let fee = (amount_0.u128() as f64 * fee_rate).round() as u32;
-        let price = amount_0.u128() as f64 / amount_1.u128() as f64;
+        let fee_rate = 0.003;
+        let fee = (amount_1.u128() as f64 * fee_rate).round() as u32;
 
-        deps.api.debug(
-            format!(
-                "graduate: creator: {}, fee: {}, price: {}",
-                env.contract.address.to_string(), fee, price
-            )
-            .as_str(),
-        );
+        let price_uin128: u128 = graduate_event.price.into();
+        let price = price_uin128 as f64;
 
         // 2. create pool in target vm
-        deps.api.debug(
-            format!(
-                "graduate: vm: {}, coin0:{}{}, coin1:{}{}, meme{}",
-                vm,
-                amount_0.u128(),
-                denom_0.to_string(),
-                amount_1.u128(),
-                denom_1.to_string(),
-                graduate_event.meme_denom.to_string()
-            )
-            .as_str(),
-        );
         let pool: Box<dyn PoolManager> = match vm.to_uppercase().as_str() {
             "SVM" => Box::new(Raydium {
                 svm_creator: graduate_event.pool_svm_address,
@@ -254,8 +236,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             "EVM" => Box::new(Uniswap {
                 fee: fee,
                 price: price,
-                creator: env.contract.address.to_string(),
-                meme_denom: graduate_event.meme_denom,
             }),
             _ => {
                 deps

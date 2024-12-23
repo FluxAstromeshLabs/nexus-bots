@@ -1,20 +1,21 @@
 pub mod uniswap {
 
-    use cosmwasm_std::{to_json_vec, Binary, StdError, Uint128, Uint256, Coin};
+    use cosmwasm_std::{to_json_vec, Binary, Coin, StdError, Uint128, Uint256};
     use serde::{Deserialize, Serialize};
 
-    use crate::astromesh::{self, FISInstruction, PoolManager, ACTION_VM_INVOKE, PLANE_EVM, PLANE_COSMOS, ACTION_COSMOS_INVOKE, MsgAstroTransfer};
+    use crate::astromesh::{
+        self, FISInstruction, MsgAstroTransfer, PoolManager, ACTION_COSMOS_INVOKE,
+        ACTION_VM_INVOKE, PLANE_COSMOS, PLANE_EVM,
+    };
 
     pub struct Uniswap {
         pub fee: u32,
         pub price: f64,
-        pub creator: String,
-        pub meme_denom: String,
     }
 
     pub const UNISWAP: &str = "uniswap";
     pub const POOL_MANAGER: &str = "6ff00f6b2120157fca353fbe24d25536042197df";
-    pub const POOL_ACTION: &str = "366c9837f9a2cc11ac5cac1602e57b73e6bf784";
+    pub const POOL_ACTION: &str = "366c9837f9a32cc11ac5cac1602e57b73e6bf784";
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct PoolKey {
@@ -157,30 +158,23 @@ pub mod uniswap {
         res
     }
 
-    pub fn compute_sqrt_price_x96_int(price: f64) -> Uint256 {
+    fn compute_sqrt_price_x96_int(price: f64) -> Uint256 {
         let sqrt_price = price.sqrt();
         let scale_factor: f64 = 2_f64.powi(96);
         let sqrt_price_x96_int = sqrt_price * scale_factor;
         Uint256::from(sqrt_price_x96_int as u128)
     }
 
-    pub fn compute_tick(price: f64, tick_spacing: i64) -> i64 {
-        let log_price = price.ln();
-        let log_factor = 1.0001f64.ln();
-        let tick_float = log_price / log_factor;
-        let tick_int = tick_float.round() as i64;
-    
-        let rounded_tick = (tick_int / tick_spacing) * tick_spacing;
-        if tick_int % tick_spacing != 0 {
-            if tick_int % tick_spacing > tick_spacing / 2 {
-                return rounded_tick + tick_spacing as i64;
-            }
-        }
-    
-        rounded_tick as i64
+    fn compute_tick(price: f64, tick_spacing: i64) -> i64 {
+        let log_base = 1.0001_f64.ln();
+        let tick = (price.ln() / log_base).floor() as i64;
+        let valid_tick = tick_spacing * (tick / tick_spacing);
+        let calculated_price = 1.0001_f64.powi(tick.try_into().unwrap());
+
+        valid_tick
     }
 
-    pub fn compose_erc20_approve(
+    fn compose_erc20_approve(
         sender: &String,
         erc20_addr: &[u8; 20],
         delegator: &[u8; 20],
@@ -209,7 +203,7 @@ pub mod uniswap {
         }
     }
 
-    pub fn initialize(
+    fn initialize(
         fee: u32,
         price: f64,
         sender: String,
@@ -237,7 +231,7 @@ pub mod uniswap {
         calldata.extend(signature);
         calldata.extend(pool_key.serialize());
         calldata.extend(sqrt_price_x96_int.to_be_bytes());
-        calldata.extend(empty_hook_data);
+        calldata.extend(empty_hook_data.iter());
 
         let msg = MsgExecuteContract::new(
             sender.to_string(),
@@ -254,7 +248,7 @@ pub mod uniswap {
         }
     }
 
-    pub fn provide_liquidity(
+    fn provide_liquidity(
         fee: u32,
         price: f64,
         sender: String,
@@ -321,44 +315,7 @@ pub mod uniswap {
         ) -> Vec<FISInstruction> {
             let mut instructions = Vec::new();
 
-            let creator = self.creator.clone();
-            let amount: u128 = 1000000000000000;
-
-            instructions.extend(vec![
-                FISInstruction {
-                    plane: PLANE_COSMOS.to_string(),
-                    action: ACTION_COSMOS_INVOKE.to_string(),
-                    address: "".to_string(),
-                    msg: to_json_vec(&MsgAstroTransfer::new(
-                        creator.to_string(),
-                        creator.to_string(),
-                        PLANE_COSMOS.to_string(),
-                        PLANE_EVM.to_string(),
-                        Coin {
-                            denom: "sol".to_string(),
-                            amount: amount.into(),
-                        },
-                    )).unwrap(),
-                },
-                FISInstruction {
-                    plane: PLANE_COSMOS.to_string(),
-                    action: ACTION_COSMOS_INVOKE.to_string(),
-                    address: "".to_string(),
-                    msg: to_json_vec(&MsgAstroTransfer::new(
-                        creator.to_string(),
-                        creator.to_string(),
-                        PLANE_COSMOS.to_string(),
-                        PLANE_EVM.to_string(),
-                        Coin {
-                            denom: self.meme_denom.to_string(),
-                            amount: amount.into(),
-                        },
-                    )).unwrap(),
-                },
-            ]);
-
             let allowance: Uint256 = Uint256::from(100000000000000000u128);
-
             instructions.push(compose_erc20_approve(
                 &sender.to_string(),
                 &parse_addr(&denom_0),
@@ -373,25 +330,21 @@ pub mod uniswap {
                 allowance.into(),
             ));
 
-            instructions.push(
-                initialize(
-                    self.fee,
-                    self.price,
-                    creator.to_string(),
-                    denom_0.to_string(),
-                    denom_1.to_string(),
-                )
-            );
+            instructions.push(initialize(
+                self.fee,
+                self.price,
+                sender.to_string(),
+                denom_0.to_string(),
+                denom_1.to_string(),
+            ));
 
-            instructions.push(
-                provide_liquidity(
-                    self.fee,
-                    self.price,
-                    creator.to_string(),
-                    denom_0.to_string(),
-                    denom_1.to_string(),
-                )
-            );
+            instructions.push(provide_liquidity(
+                self.fee,
+                self.price,
+                sender.to_string(),
+                denom_0.to_string(),
+                denom_1.to_string(),
+            ));
 
             instructions
         }
