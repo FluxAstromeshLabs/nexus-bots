@@ -225,6 +225,17 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let price = price_uin128 as f64;
 
         // 2. create pool in target vm
+        _deps.api.debug(
+            format!(
+                "graduate: vm: {}, coin0:{}{}, coin1:{}{}",
+                vm,
+                amount_0.u128(),
+                denom_0.to_string(),
+                amount_1.u128(),
+                denom_1.to_string(),
+            )
+            .as_str(),
+        );
         let pool: Box<dyn PoolManager> = match vm.to_uppercase().as_str() {
             "SVM" => Box::new(Raydium {
                 svm_creator: graduate_event.pool_svm_address,
