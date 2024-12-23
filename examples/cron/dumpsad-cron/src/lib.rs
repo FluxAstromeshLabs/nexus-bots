@@ -1,8 +1,11 @@
-use astromesh::{FISInstruction, PoolManager};
+use astromesh::{
+    FISInstruction, MsgAstroTransfer, PoolManager, ACTION_COSMOS_INVOKE, ACTION_VM_INVOKE,
+    PLANE_COSMOS, PLANE_SVM,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Uint128,
+    entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env,
+    MessageInfo, Response, StdResult, Uint128,
 };
 use events::{GraduateEvent, StrategyEvent};
 use std::vec::Vec;
@@ -89,7 +92,7 @@ pub struct CronMsg {
 }
 
 #[entry_point]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cron_msg = from_json::<CronMsg>(msg.msg)?;
 
     let event_inputs = &msg.fis_input.get(0).unwrap().data;
@@ -105,6 +108,17 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
 
         let graduate_event = from_json::<GraduateEvent>(parsed_event.data)?;
+        let vm = graduate_event.vm;
+        let pool_address = graduate_event.pool_address;
+
+        let vm_str = vm.to_uppercase();
+        if vm_str.as_str() != "EVM" && vm_str.as_str() != "SVM" && vm_str.as_str() != "WASM" {
+            _deps
+                .api
+                .debug(format!("unsupported plane: {}", vm_str).as_str());
+            continue;
+        }
+
         let sol_coin = Coin {
             denom: "sol".to_string(),
             amount: graduate_event.sol_amount,
@@ -115,12 +129,48 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             amount: graduate_event.meme_amount,
         };
 
-        // TODO: Get denom link here for EVM, SVM
         // handle graduate
         let contract_sequence = msg.fis_input.get(1).unwrap().data.get(0).unwrap();
         let (mut denom_0, mut denom_1) = (sol_coin.denom, meme_coin.denom);
         let (mut amount_0, mut amount_1) = (sol_coin.amount, meme_coin.amount);
-        let vm = graduate_event.vm;
+
+        if vm_str.as_str() == "SVM" {
+            instructions.extend(vec![
+                FISInstruction {
+                    plane: PLANE_COSMOS.to_string(),
+                    action: ACTION_COSMOS_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgAstroTransfer::new(
+                        pool_address.to_string(),
+                        pool_address.to_string(),
+                        PLANE_COSMOS.to_string(),
+                        PLANE_SVM.to_string(),
+                        Coin {
+                            denom: denom_0.clone(),
+                            amount: amount_0,
+                        },
+                    ))?,
+                },
+                FISInstruction {
+                    plane: PLANE_COSMOS.to_string(),
+                    action: ACTION_COSMOS_INVOKE.to_string(),
+                    address: "".to_string(),
+                    msg: to_json_vec(&MsgAstroTransfer::new(
+                        pool_address.to_string(),
+                        pool_address.to_string(),
+                        PLANE_COSMOS.to_string(),
+                        PLANE_SVM.to_string(),
+                        Coin {
+                            denom: denom_1.clone(),
+                            amount: amount_1,
+                        },
+                    ))?,
+                },
+            ]);
+
+            denom_0 = "CPozhCGVaGAcPVkxERsUYat4b7NKT9QeAR9KjNH4JpDG".to_string();
+            denom_1 = graduate_event.meme_denom_link;
+        }
 
         if denom_0 > denom_1 {
             (denom_0, denom_1) = (denom_1, denom_0);
@@ -134,15 +184,18 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             format!(
                 "graduate: vm: {}, coin0:{}{}, coin1:{}{}",
                 vm,
-                denom_0.to_string(),
                 amount_0.u128(),
+                denom_0.to_string(),
+                amount_1.u128(),
                 denom_1.to_string(),
-                amount_1.u128()
             )
             .as_str(),
         );
         let pool: Box<dyn PoolManager> = match vm.to_uppercase().as_str() {
-            "SVM" => Box::new(Raydium {}),
+            "SVM" => Box::new(Raydium {
+                svm_creator: graduate_event.pool_svm_address,
+                open_time: env.block.time.seconds(),
+            }),
             "WASM" => Box::new(Astroport {
                 contract_sequence: contract_sequence.clone(),
             }),
@@ -155,7 +208,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         };
 
         let create_pool_ixs = pool.create_pool_with_initial_liquidity(
-            graduate_event.pool_address.clone(),
+            pool_address.clone(),
             denom_0.clone(),
             amount_0,
             denom_1.clone(),

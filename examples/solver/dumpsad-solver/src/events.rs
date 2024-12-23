@@ -30,4 +30,6 @@ pub struct GraduateEvent {
     pub meme_amount: Uint128,
     pub sol_amount: Uint128,
     pub vm: String,
+    pub pool_svm_address: String,
+    pub meme_denom_link: String,
 }

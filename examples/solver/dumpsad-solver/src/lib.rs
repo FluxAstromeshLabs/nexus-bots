@@ -1,6 +1,6 @@
 use astromesh::{
-    keccak256, AccountResponse, FISInput, FISInstruction, InitialMint, MsgAstroTransfer,
-    MsgCreateBankDenom, NexusAction, ACTION_COSMOS_INVOKE, PLANE_COSMOS,
+    denom_address, keccak256, AccountResponse, FISInput, FISInstruction, InitialMint,
+    MsgAstroTransfer, MsgCreateBankDenom, NexusAction, ACTION_COSMOS_INVOKE, PLANE_COSMOS,
 };
 use bech32::{Bech32, Hrp};
 use core::str;
@@ -12,17 +12,30 @@ use cosmwasm_std::{
 };
 use curve::BondingCurve;
 use events::{CreateTokenEvent, GraduateEvent, TradeTokenEvent};
-use interpool::{CommissionConfig, MsgCreatePool, MsgUpdatePool, QueryPoolResponse};
+use interpool::{
+    CommissionConfig, DumpsadPoolState, MsgCreatePool, MsgUpdatePool, QueryPoolResponse,
+};
 use std::vec::Vec;
+use svm::{AccountLink, Pubkey};
 mod astromesh;
 mod curve;
 mod events;
 mod interpool;
+mod svm;
+mod test;
 
 const PERCENTAGE_BPS: u128 = 10_000;
 const DEFAULT_QUOTE_DENOM: &str = "sol";
 const INITIAL_AMOUNT: &Uint128 = &Uint128::new(1_000_000_000_000_000_000);
 const MARKET_CAP_TO_GRADUATE: &Uint128 = &Uint128::new(400_000_000_000);
+const POOL_AUTHORITY: &[u8] = &[
+    111, 10, 197, 241, 216, 79, 240, 92, 96, 219, 139, 173, 223, 107, 146, 221, 199, 188, 78, 138,
+    204, 94, 40, 161, 156, 98, 22, 62, 231, 66, 234, 135,
+];
+const MINT_AUTHORITY: &[u8] = &[
+    100, 170, 141, 184, 255, 121, 69, 170, 40, 163, 23, 92, 197, 250, 32, 167, 37, 202, 129, 8, 15,
+    185, 169, 178, 17, 51, 230, 69, 149, 173, 160, 138,
+];
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -82,6 +95,8 @@ fn handle_create_token(
     fis_input: &Vec<FISInput>,
 ) -> StdResult<StrategyOutput> {
     let creator = env.contract.address.to_string();
+    let target_vm = target_vm.to_uppercase();
+
     let acc_info = from_json::<AccountResponse>(fis_input.get(0).unwrap().data.get(0).unwrap())?;
     let (_, creator_bz) =
         bech32::decode(&creator).map_err(|e| StdError::generic_err(e.to_string()))?;
@@ -98,9 +113,34 @@ fn handle_create_token(
     // TODO: Check cosmwasm std Addr, it needs callback/FFI
     let pool_address = bech32::encode::<Bech32>(Hrp::parse("lux").unwrap(), pool_id)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
+    let (pool_svm_address, _) =
+        Pubkey::find_program_address(&[pool_id], &Pubkey::from_slice(POOL_AUTHORITY).unwrap())
+            .unwrap();
 
     let denom_base = format!("astromesh/{}/{}", creator.clone(), symbol);
     let denom_symbol = symbol;
+    let vm_denom_addr = match target_vm.as_str() {
+        "SVM" => {
+            let denom_address = denom_address(pool_id, 0u64);
+            let (svm_denom, _) = Pubkey::find_program_address(
+                &[denom_address.as_slice()],
+                &Pubkey::from_slice(MINT_AUTHORITY).unwrap(),
+            )
+            .unwrap();
+            &svm_denom.to_string()
+        }
+        "EVM" => {
+            let denom_address = denom_address(pool_id, 0u64);
+            &HexBinary::from(denom_address).to_string()
+        }
+        _ => &denom_base.clone(),
+    };
+
+    let pool_state = DumpsadPoolState {
+        vm: target_vm.clone(),
+        pool_svm_address: pool_svm_address.to_string(),
+        meme_denom_link: vm_denom_addr.clone(),
+    };
 
     // create pool
     let create_pool_msg = MsgCreatePool::new(
@@ -142,7 +182,7 @@ fn handle_create_token(
     let update_pool_msg = MsgUpdatePool::new(
         creator.clone(),
         HexBinary::from(pool_id).to_string(),
-        target_vm.as_bytes().to_vec(),
+        to_json_vec(&pool_state)?,
         vec![],
         false,
         vec![],
@@ -150,36 +190,54 @@ fn handle_create_token(
         solver_id.clone(),
     );
 
+    let mut instructions = vec![
+        FISInstruction {
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&create_pool_msg)?,
+        },
+        FISInstruction {
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&update_pool_msg)?,
+        },
+        FISInstruction {
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&create_denom_msg)?,
+        },
+    ];
+
+    if target_vm.as_str() == "EVM" || target_vm.as_str() == "SVM" {
+        let transfer_target_plane = MsgAstroTransfer::new(
+            pool_address.clone(),
+            pool_address.clone(),
+            PLANE_COSMOS.to_string(),
+            target_vm.clone(),
+            Coin::new(Uint128::zero(), denom_base.clone()),
+        );
+        instructions.push(FISInstruction {
+            plane: PLANE_COSMOS.to_string(),
+            action: ACTION_COSMOS_INVOKE.to_string(),
+            address: "".to_string(),
+            msg: to_json_vec(&transfer_target_plane)?,
+        });
+    }
+
     Ok(StrategyOutput {
-        instructions: vec![
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&create_pool_msg)?,
-            },
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&update_pool_msg)?,
-            },
-            FISInstruction {
-                plane: PLANE_COSMOS.to_string(),
-                action: ACTION_COSMOS_INVOKE.to_string(),
-                address: "".to_string(),
-                msg: to_json_vec(&create_denom_msg)?,
-            },
-        ],
+        instructions,
         events: vec![StrategyEvent {
             topic: "create_token".to_string(),
             data: to_json_binary(&CreateTokenEvent {
-                denom: denom_base.clone(),
+                denom: denom_base,
                 name: name.clone(),
                 symbol: denom_symbol.clone(),
                 description: description.clone(),
                 pool_id: HexBinary::from(pool_id).to_string(),
-                vm: target_vm.clone(),
+                vm: target_vm,
                 logo: uri.clone(),
                 cron_id,
                 solver_id,
@@ -318,6 +376,7 @@ fn handle_buy(
             msg: to_json_vec(&update_pool_msg)?,
         });
 
+        let pool_state = from_json::<DumpsadPoolState>(pool_res.pool.input_blob.unwrap())?;
         events.push(StrategyEvent {
             topic: "graduate".to_string(),
             data: to_json_binary(&GraduateEvent {
@@ -326,9 +385,9 @@ fn handle_buy(
                 meme_denom: meme_denom.clone(),
                 meme_amount: meme_amount - received_amount,
                 sol_amount: sol_amount + amount,
-                vm: str::from_utf8(pool_res.pool.input_blob.unwrap().as_slice())
-                    .unwrap()
-                    .to_string(),
+                vm: pool_state.vm,
+                pool_svm_address: pool_state.pool_svm_address,
+                meme_denom_link: pool_state.meme_denom_link,
             })?,
         });
     }
