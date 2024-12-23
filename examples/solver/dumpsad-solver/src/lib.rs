@@ -1,17 +1,18 @@
 use astromesh::{
-    keccak256, AccountResponse, FISInput, FISInstruction, InitialMint, MsgAstroTransfer, MsgCreateBankDenom, NexusAction, ACTION_COSMOS_INVOKE, PLANE_COSMOS 
+    keccak256, AccountResponse, FISInput, FISInstruction, InitialMint, MsgAstroTransfer,
+    MsgCreateBankDenom, NexusAction, ACTION_COSMOS_INVOKE, PLANE_COSMOS,
 };
 use bech32::{Bech32, Hrp};
+use core::str;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_string, to_json_vec, Binary, Coin,
-    DenomMetadata, DenomUnit, Deps, DepsMut, Env, HexBinary, MessageInfo,
-    Response, StdError, StdResult, Uint128, 
+    DenomMetadata, DenomUnit, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
+    StdResult, Uint128,
 };
 use curve::BondingCurve;
 use events::{CreateTokenEvent, GraduateEvent, TradeTokenEvent};
 use interpool::{CommissionConfig, MsgCreatePool, MsgUpdatePool, QueryPoolResponse};
-use core::str;
 use std::vec::Vec;
 mod astromesh;
 mod curve;
@@ -296,7 +297,8 @@ fn handle_buy(
         })?,
     }];
 
-    let is_graduate = (post_price * INITIAL_AMOUNT / BondingCurve::PRECISION_MULTIPLIER).ge(MARKET_CAP_TO_GRADUATE);
+    let is_graduate = (post_price * INITIAL_AMOUNT / BondingCurve::PRECISION_MULTIPLIER)
+        .ge(MARKET_CAP_TO_GRADUATE);
     if is_graduate {
         let update_pool_msg = MsgUpdatePool::new(
             pool_address.clone(),
@@ -315,7 +317,7 @@ fn handle_buy(
             address: "".to_string(),
             msg: to_json_vec(&update_pool_msg)?,
         });
-        
+
         events.push(StrategyEvent {
             topic: "graduate".to_string(),
             data: to_json_binary(&GraduateEvent {
@@ -324,7 +326,9 @@ fn handle_buy(
                 meme_denom: meme_denom.clone(),
                 meme_amount: meme_amount - received_amount,
                 sol_amount: sol_amount + amount,
-                vm: str::from_utf8(pool_res.pool.input_blob.unwrap().as_slice()).unwrap().to_string(),
+                vm: str::from_utf8(pool_res.pool.input_blob.unwrap().as_slice())
+                    .unwrap()
+                    .to_string(),
             })?,
         });
     }
@@ -430,6 +434,28 @@ fn handle_sell(
     })
 }
 
+fn handle_trade(
+    deps: Deps,
+    env: Env,
+    action: String,
+    denom: String,
+    amount: Uint128,
+    slippage: Uint128,
+    fis_input: &Vec<FISInput>,
+) -> StdResult<StrategyOutput> {
+    if action.as_str() != "buy" && action.as_str() != "sell" {
+        return Err(StdError::generic_err(
+            "incorrect action. accepted [buy, sell]",
+        ));
+    }
+
+    match action.as_str() {
+        "buy" => handle_buy(deps, env, denom, amount, slippage, fis_input),
+        "sell" => handle_sell(deps, env, denom, amount, slippage, fis_input),
+        _ => unreachable!(),
+    }
+}
+
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let nexus_action: NexusAction = from_json(&msg.msg)?;
@@ -454,16 +480,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             cron_id,
             &msg.fis_input,
         ),
-        NexusAction::Buy {
+        NexusAction::Trade {
+            action,
             denom,
             amount,
             slippage,
-        } => handle_buy(deps, env, denom, amount, slippage, &msg.fis_input),
-        NexusAction::Sell {
-            denom,
-            amount,
-            slippage,
-        } => handle_sell(deps, env, denom, amount, slippage, &msg.fis_input),
+        } => handle_trade(deps, env, action, denom, amount, slippage, &msg.fis_input),
     }?;
 
     Ok(to_json_binary(&output).unwrap())
