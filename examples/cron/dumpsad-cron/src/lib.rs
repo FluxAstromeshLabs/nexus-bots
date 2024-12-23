@@ -9,15 +9,15 @@ use cosmwasm_std::{
 };
 use events::{GraduateEvent, StrategyEvent};
 use std::vec::Vec;
-// use svm::raydium::Raydium;
-// use wasm::astroport::Astroport;
+use svm::raydium::Raydium;
+use wasm::astroport::Astroport;
 use evm::uniswap::Uniswap;
 mod astromesh;
 mod events;
 mod evm;
-// mod svm;
+mod svm;
 mod test;
-// mod wasm;
+mod wasm;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
