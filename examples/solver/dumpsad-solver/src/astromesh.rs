@@ -95,12 +95,8 @@ pub enum NexusAction {
         solver_id: String,
         cron_id: String,
     },
-    Buy {
-        denom: String,
-        amount: Uint128,
-        slippage: Uint128,
-    },
-    Sell {
+    Trade {
+        action: String,
         denom: String,
         amount: Uint128,
         slippage: Uint128,

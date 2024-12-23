@@ -493,6 +493,28 @@ fn handle_sell(
     })
 }
 
+fn handle_trade(
+    deps: Deps,
+    env: Env,
+    action: String,
+    denom: String,
+    amount: Uint128,
+    slippage: Uint128,
+    fis_input: &Vec<FISInput>,
+) -> StdResult<StrategyOutput> {
+    if action.as_str() != "buy" && action.as_str() != "sell" {
+        return Err(StdError::generic_err(
+            "incorrect action. accepted [buy, sell]",
+        ));
+    }
+
+    match action.as_str() {
+        "buy" => handle_buy(deps, env, denom, amount, slippage, fis_input),
+        "sell" => handle_sell(deps, env, denom, amount, slippage, fis_input),
+        _ => unreachable!(),
+    }
+}
+
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let nexus_action: NexusAction = from_json(&msg.msg)?;
@@ -517,16 +539,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             cron_id,
             &msg.fis_input,
         ),
-        NexusAction::Buy {
+        NexusAction::Trade {
+            action,
             denom,
             amount,
             slippage,
-        } => handle_buy(deps, env, denom, amount, slippage, &msg.fis_input),
-        NexusAction::Sell {
-            denom,
-            amount,
-            slippage,
-        } => handle_sell(deps, env, denom, amount, slippage, &msg.fis_input),
+        } => handle_trade(deps, env, action, denom, amount, slippage, &msg.fis_input),
     }?;
 
     Ok(to_json_binary(&output).unwrap())
