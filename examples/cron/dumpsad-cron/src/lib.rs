@@ -1,6 +1,6 @@
 use astromesh::{
-    FISInstruction, MsgAstroTransfer, PoolManager, ACTION_COSMOS_INVOKE, ACTION_VM_INVOKE,
-    PLANE_COSMOS, PLANE_SVM, PLANE_EVM,
+    FISInstruction, MsgAstroTransfer, PoolManager, ACTION_COSMOS_INVOKE, PLANE_COSMOS, PLANE_EVM,
+    PLANE_SVM,
 };
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
@@ -8,10 +8,10 @@ use cosmwasm_std::{
     MessageInfo, Response, StdResult, Uint128,
 };
 use events::{GraduateEvent, StrategyEvent};
+use evm::uniswap::Uniswap;
 use std::vec::Vec;
 use svm::raydium::Raydium;
 use wasm::astroport::Astroport;
-use evm::uniswap::Uniswap;
 mod astromesh;
 mod events;
 mod evm;
@@ -93,7 +93,7 @@ pub struct CronMsg {
 }
 
 #[entry_point]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cron_msg = from_json::<CronMsg>(msg.msg)?;
 
     let event_inputs = &msg.fis_input.get(0).unwrap().data;
@@ -114,7 +114,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         let vm_str = vm.to_uppercase();
         if vm_str.as_str() != "EVM" && vm_str.as_str() != "SVM" && vm_str.as_str() != "WASM" {
-            deps
+            _deps
                 .api
                 .debug(format!("unsupported plane: {}", vm_str).as_str());
             continue;
@@ -238,7 +238,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 price: price,
             }),
             _ => {
-                deps
+                _deps
                     .api
                     .debug(format!("unknown vm: {}, continue", vm).as_str());
                 continue;

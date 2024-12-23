@@ -1,19 +1,15 @@
 pub mod uniswap {
 
-    use cosmwasm_std::{to_json_vec, Binary, Coin, StdError, Uint128, Uint256};
+    use cosmwasm_std::{to_json_vec, Binary, StdError, Uint128, Uint256};
     use serde::{Deserialize, Serialize};
 
-    use crate::astromesh::{
-        self, FISInstruction, MsgAstroTransfer, PoolManager, ACTION_COSMOS_INVOKE,
-        ACTION_VM_INVOKE, PLANE_COSMOS, PLANE_EVM,
-    };
+    use crate::astromesh::{FISInstruction, PoolManager, ACTION_VM_INVOKE, PLANE_EVM};
 
     pub struct Uniswap {
         pub fee: u32,
         pub price: f64,
     }
 
-    pub const UNISWAP: &str = "uniswap";
     pub const POOL_MANAGER: &str = "6ff00f6b2120157fca353fbe24d25536042197df";
     pub const POOL_ACTION: &str = "366c9837f9a32cc11ac5cac1602e57b73e6bf784";
 
@@ -169,7 +165,6 @@ pub mod uniswap {
         let log_base = 1.0001_f64.ln();
         let tick = (price.ln() / log_base).floor() as i64;
         let valid_tick = tick_spacing * (tick / tick_spacing);
-        let calculated_price = 1.0001_f64.powi(tick.try_into().unwrap());
 
         valid_tick
     }
@@ -309,9 +304,9 @@ pub mod uniswap {
             &self,
             sender: String,
             denom_0: String,
-            amount_0: Uint128,
+            _amount_0: Uint128,
             denom_1: String,
-            amount_1: Uint128,
+            _amount_1: Uint128,
         ) -> Vec<FISInstruction> {
             let mut instructions = Vec::new();
 
