@@ -5,7 +5,7 @@ use astromesh::{
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, to_json_vec, Binary, Coin, Deps, DepsMut, Env,
-    HexBinary, MessageInfo, Response, StdError, StdResult, Uint128,
+    MessageInfo, Response, StdResult, Uint128,
 };
 use events::{GraduateEvent, StrategyEvent};
 use std::vec::Vec;
@@ -135,7 +135,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let (mut denom_0, mut denom_1) = (sol_coin.denom, meme_coin.denom);
         let (mut amount_0, mut amount_1) = (sol_coin.amount, meme_coin.amount);
 
-        if vm.to_uppercase().as_str() == "SVM" {
+        if vm_str.as_str() == "SVM" {
             instructions.extend(vec![
                 FISInstruction {
                     plane: PLANE_COSMOS.to_string(),
@@ -173,7 +173,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             denom_1 = graduate_event.meme_denom_link.clone();
         }
 
-        if vm.to_uppercase().as_str() == "EVM" {
+        if vm_str.as_str() == "EVM" {
             instructions.extend(vec![
                 FISInstruction {
                     plane: PLANE_COSMOS.to_string(),
