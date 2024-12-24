@@ -351,7 +351,8 @@ fn handle_buy(
             denom: meme_denom.clone(),
             price: post_price,
             trader: trader.to_string(),
-            amount: received_amount,
+            meme_amount: received_amount,
+            sol_amount: amount,
         })?,
     }];
 
@@ -486,7 +487,8 @@ fn handle_sell(
                 denom: meme_denom,
                 price: post_price,
                 trader: trader.to_string(),
-                amount: received_amount,
+                meme_amount: amount,
+                sol_amount: received_amount,
             })?,
         }],
         result: to_json_string(&received_coin)?,
