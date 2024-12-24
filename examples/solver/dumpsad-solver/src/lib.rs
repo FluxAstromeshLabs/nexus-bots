@@ -352,6 +352,7 @@ fn handle_buy(
             price: post_price,
             trader: trader.to_string(),
             amount: received_amount,
+            curve_sol_amount: curve.x,
         })?,
     }];
 
@@ -487,6 +488,7 @@ fn handle_sell(
                 price: post_price,
                 trader: trader.to_string(),
                 amount: received_amount,
+                curve_sol_amount: curve.x,
             })?,
         }],
         result: to_json_string(&received_coin)?,
