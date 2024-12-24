@@ -20,6 +20,7 @@ pub struct TradeTokenEvent {
     pub price: Uint128,
     pub trader: String,
     pub amount: Uint128,
+    pub sol_amount: Uint128,
 }
 
 #[cw_serde]
