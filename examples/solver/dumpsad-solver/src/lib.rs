@@ -353,6 +353,7 @@ fn handle_buy(
             trader: trader.to_string(),
             meme_amount: received_amount,
             sol_amount: amount,
+            curve_sol_amount: curve.x,
         })?,
     }];
 
@@ -489,6 +490,7 @@ fn handle_sell(
                 trader: trader.to_string(),
                 meme_amount: amount,
                 sol_amount: received_amount,
+                curve_sol_amount: curve.x,
             })?,
         }],
         result: to_json_string(&received_coin)?,
