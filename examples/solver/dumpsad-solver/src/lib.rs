@@ -288,20 +288,25 @@ fn handle_buy(
     );
 
     // calculate the delta Y
-    let mut curve = BondingCurve::default(sol_amount, INITIAL_AMOUNT - meme_amount);
+    let mut curve = BondingCurve::default(
+        sol_amount,
+        INITIAL_AMOUNT - meme_amount,
+        MARKET_CAP_TO_GRADUATE.clone(),
+        INITIAL_AMOUNT.clone(),
+    );
     let current_price = curve.price();
-    let worst_amount = amount
+    let (received_amount, excess_sol_amount) = curve.buy(amount);
+    let amount = amount - excess_sol_amount;
+    let worst_meme_amount = amount
         * BondingCurve::PRECISION_MULTIPLIER
         * Uint128::new(PERCENTAGE_BPS - slippage.u128())
         / current_price
         / Uint128::new(PERCENTAGE_BPS);
-
-    let received_amount = curve.buy(amount);
     assert!(received_amount.gt(&Uint128::zero()), "cannot buy 0 amount");
     assert!(
-        !received_amount.lt(&worst_amount),
+        !received_amount.lt(&worst_meme_amount),
         "slippage exceeds. worst amount: {}, actual amount: {}",
-        worst_amount,
+        worst_meme_amount,
         received_amount
     );
     let post_price = curve.price();
@@ -422,7 +427,12 @@ fn handle_sell(
     );
 
     // Initialize bonding curve
-    let mut curve = BondingCurve::default(sol_amount, INITIAL_AMOUNT - meme_amount);
+    let mut curve = BondingCurve::default(
+        sol_amount,
+        INITIAL_AMOUNT - meme_amount,
+        MARKET_CAP_TO_GRADUATE.clone(),
+        INITIAL_AMOUNT.clone(),
+    );
 
     // Calculate receive amount and verify slippage
     let current_price = curve.price();
