@@ -271,7 +271,7 @@ pub mod uniswap {
         let tick_upper = compute_tick(upper_price, tick_spacing.into());
 
         let modify_liquidity_params =
-            ModifyLiquidityParams::new(tick_lower, tick_upper, 1000, salt);
+            ModifyLiquidityParams::new(tick_lower, tick_upper, 1000000000, salt);
         let empty_hook_data: [u8; 64] = [
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 1, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
