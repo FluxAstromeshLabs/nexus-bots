@@ -41,7 +41,10 @@ impl BondingCurve {
         // newY = a - b / (30 + newX)
         // newX = x + dx
         // newY = y + dy => dy = newY - y
-        let graduate_sol_amount = (self.graduate_threshold * self.b / self.meme_cap).isqrt()
+        let graduate_sol_amount = (self.graduate_threshold * self.b / self.meme_cap
+            * BondingCurve::PRECISION_MULTIPLIER)
+            .isqrt()
+            + Uint128::one()
             - Uint128::new(30) * BondingCurve::PRECISION_MULTIPLIER;
 
         let excess_x_amount = if self.x + dx > graduate_sol_amount {

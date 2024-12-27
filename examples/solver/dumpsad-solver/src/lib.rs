@@ -286,7 +286,6 @@ fn handle_buy(
         !meme_amount.is_zero(),
         "cannot trade, the curve is graduated"
     );
-
     // calculate the delta Y
     let mut curve = BondingCurve::default(
         sol_amount,
@@ -440,6 +439,7 @@ fn handle_sell(
     let worst_amount = amount * current_price * Uint128::new(PERCENTAGE_BPS - slippage.u128())
         / Uint128::new(PERCENTAGE_BPS)
         / BondingCurve::PRECISION_MULTIPLIER;
+
     assert!(
         received_amount.gt(&Uint128::zero()),
         "receive zero sol, try larger meme amount"
@@ -450,8 +450,8 @@ fn handle_sell(
         worst_amount,
         received_amount
     );
-    let post_price = curve.price();
 
+    let post_price = curve.price();
     let pool_id_bz = HexBinary::from_hex(&pool_res.pool.pool_id)?;
     let pool_address = bech32::encode::<Bech32>(Hrp::parse("lux").unwrap(), pool_id_bz.as_slice())
         .map_err(|e| StdError::generic_err(e.to_string()))?;
