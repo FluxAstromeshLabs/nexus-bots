@@ -19,4 +19,5 @@ pub struct GraduateEvent {
     pub vm: String,
     pub pool_svm_address: String,
     pub meme_denom_link: String,
+    pub token_creator: String,
 }

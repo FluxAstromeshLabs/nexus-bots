@@ -19,6 +19,10 @@ mod svm;
 mod test;
 mod wasm;
 
+const FEE_DENOM: &str = "sol";
+const TOKEN_CREATOR_FEE: Uint128 = Uint128::new(500_000_000);
+const CREATOR_FEE: Uint128 = Uint128::new(1_500_000_000);
+
 #[cw_serde]
 pub struct InstantiateMsg {}
 
@@ -96,6 +100,8 @@ pub struct CronMsg {
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cron_msg = from_json::<CronMsg>(msg.msg)?;
 
+    let creator = env.contract.address.to_string();
+
     let event_inputs = &msg.fis_input.get(0).unwrap().data;
     let mut instructions = vec![];
     for e in event_inputs {
@@ -136,14 +142,8 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let (mut amount_0, mut amount_1) = (sol_coin.amount, meme_coin.amount);
 
         // 1. pay creator 0.5 SOL, get 1.5 SOL as fee
-        let parts: Vec<&str> = graduate_event.meme_denom.split('/').collect();
-        let token_creator = parts[1];
-        let creator = env.contract.address.clone();
-        let fee_denom = "sol".to_string();
-        let token_creator_fee: Uint128 = Uint128::from(500000000u128);
-        let creator_fee: Uint128 = Uint128::from(1500000000u128);
-
-        amount_0 = amount_0 - token_creator_fee - creator_fee;
+        let token_creator = graduate_event.token_creator;
+        amount_0 = amount_0 - TOKEN_CREATOR_FEE - CREATOR_FEE;
 
         let price_uin128: u128 = graduate_event.price.into();
         let price = price_uin128 as f64;
@@ -159,8 +159,8 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     PLANE_COSMOS.to_string(),
                     PLANE_COSMOS.to_string(),
                     Coin {
-                        denom: fee_denom.clone(),
-                        amount: token_creator_fee,
+                        denom: FEE_DENOM.to_string(),
+                        amount: TOKEN_CREATOR_FEE,
                     },
                 ))?,
             },
@@ -174,8 +174,8 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                     PLANE_COSMOS.to_string(),
                     PLANE_COSMOS.to_string(),
                     Coin {
-                        denom: fee_denom.clone(),
-                        amount: creator_fee,
+                        denom: FEE_DENOM.to_string(),
+                        amount: CREATOR_FEE,
                     },
                 ))?,
             },

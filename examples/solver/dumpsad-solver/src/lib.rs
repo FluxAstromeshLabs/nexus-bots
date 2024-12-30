@@ -390,6 +390,7 @@ fn handle_buy(
                 vm: pool_state.vm,
                 pool_svm_address: pool_state.pool_svm_address,
                 meme_denom_link: pool_state.meme_denom_link,
+                token_creator: pool_res.pool.operator_addr,
             })?,
         });
     }
