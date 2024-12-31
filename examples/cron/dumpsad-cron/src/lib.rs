@@ -19,6 +19,10 @@ mod svm;
 mod test;
 mod wasm;
 
+const FEE_DENOM: &str = "sol";
+const TOKEN_CREATOR_FEE: Uint128 = Uint128::new(500_000_000);
+const CREATOR_FEE: Uint128 = Uint128::new(1_500_000_000);
+
 #[cw_serde]
 pub struct InstantiateMsg {}
 
@@ -96,6 +100,8 @@ pub struct CronMsg {
 pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cron_msg = from_json::<CronMsg>(msg.msg)?;
 
+    let creator = env.contract.address.to_string();
+
     let event_inputs = &msg.fis_input.get(0).unwrap().data;
     let mut instructions = vec![];
     for e in event_inputs {
@@ -134,6 +140,46 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         let contract_sequence = msg.fis_input.get(1).unwrap().data.get(0).unwrap();
         let (mut denom_0, mut denom_1) = (sol_coin.denom, meme_coin.denom);
         let (mut amount_0, mut amount_1) = (sol_coin.amount, meme_coin.amount);
+
+        // 1. pay creator 0.5 SOL, get 1.5 SOL as fee
+        let token_creator = graduate_event.token_creator;
+        amount_0 = amount_0 - TOKEN_CREATOR_FEE - CREATOR_FEE;
+
+        let price_uin128: u128 = graduate_event.price.into();
+        let price = price_uin128 as f64;
+
+        instructions.extend(vec![
+            FISInstruction {
+                plane: PLANE_COSMOS.to_string(),
+                action: ACTION_COSMOS_INVOKE.to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&MsgAstroTransfer::new(
+                    pool_address.clone(),
+                    token_creator.to_string(),
+                    PLANE_COSMOS.to_string(),
+                    PLANE_COSMOS.to_string(),
+                    Coin {
+                        denom: FEE_DENOM.to_string(),
+                        amount: TOKEN_CREATOR_FEE,
+                    },
+                ))?,
+            },
+            FISInstruction {
+                plane: PLANE_COSMOS.to_string(),
+                action: ACTION_COSMOS_INVOKE.to_string(),
+                address: "".to_string(),
+                msg: to_json_vec(&MsgAstroTransfer::new(
+                    pool_address.clone(),
+                    creator.to_string(),
+                    PLANE_COSMOS.to_string(),
+                    PLANE_COSMOS.to_string(),
+                    Coin {
+                        denom: FEE_DENOM.to_string(),
+                        amount: CREATOR_FEE,
+                    },
+                ))?,
+            },
+        ]);
 
         if vm_str.as_str() == "SVM" {
             instructions.extend(vec![
@@ -216,14 +262,6 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             (amount_0, amount_1) = (amount_1, amount_0);
         }
 
-        // 1. pay creator 0.5 SOL, get 1.5 SOL as fee
-        // TODO: Generate fee transfers here
-        let fee_rate = 0.003;
-        let fee = (amount_1.u128() as f64 * fee_rate).round() as u32;
-
-        let price_uin128: u128 = graduate_event.price.into();
-        let price = price_uin128 as f64;
-
         // 2. create pool in target vm
         _deps.api.debug(
             format!(
@@ -245,7 +283,7 @@ pub fn query(_deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 contract_sequence: contract_sequence.clone(),
             }),
             "EVM" => Box::new(Uniswap {
-                fee: fee,
+                fee: 3000, // 0.3%
                 price: price,
             }),
             _ => {
